@@ -1,0 +1,55 @@
+{% extends 'admin/base_admin.html.twig' %}
+
+{% block title %}Dashboard Global - Admin{% endblock %}
+
+{% block body %}
+    <h1>Vue Globale du Parking</h1>
+
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 2rem;">
+        <div class="card" style="border-left: 4px solid var(--primary);">
+            <h3 style="color: var(--text-muted); font-size: 1rem;">Total des places</h3>
+            <div style="font-size: 2.5rem; font-weight: 800;">{{ total_spots }}</div>
+        </div>
+        <div class="card" style="border-left: 4px solid #ef4444;">
+            <h3 style="color: var(--text-muted); font-size: 1rem;">Places occupées</h3>
+            <div style="font-size: 2.5rem; font-weight: 800;">{{ occupied_spots }}</div>
+        </div>
+        <div class="card" style="border-left: 4px solid #10b981;">
+            <h3 style="color: var(--text-muted); font-size: 1rem;">Utilisateurs inscrits</h3>
+            <div style="font-size: 2.5rem; font-weight: 800;">{{ total_users }}</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>État détaillé des capteurs</h2>
+        <br>
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+                <tr style="border-bottom: 2px solid var(--border-color);">
+                    <th style="padding: 1rem 0;">ID</th>
+                    <th>Nom</th>
+                    <th>Statut</th>
+                    <th>Dernière mise à jour</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for spot in spots %}
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 1rem 0;">{{ spot.id }}</td>
+                    <td><strong>{{ spot.name }}</strong></td>
+                    <td>
+                        {% if spot.isOccupied %}
+                            <span style="background: #fee2e2; color: #ef4444; padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 600; font-size: 0.85rem;">Occupé</span>
+                        {% else %}
+                            <span style="background: #d1fae5; color: #10b981; padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 600; font-size: 0.85rem;">Libre</span>
+                        {% endif %}
+                    </td>
+                    <td style="color: var(--text-muted);">
+                        {{ spot.lastUpdatedAt ? spot.lastUpdatedAt|date('d/m/Y H:i:s') : 'Jamais' }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}
