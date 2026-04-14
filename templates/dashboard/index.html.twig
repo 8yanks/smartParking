@@ -1,0 +1,60 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Dashboard | Parking Connecté{% endblock %}
+
+{% block body %}
+    <div class="dashboard-header">
+        <h1>État du Parking en Temps Réel</h1>
+        <p>Surveillez la disponibilité des 6 places connectées.</p>
+    </div>
+
+    <div class="parking-grid" id="parking-grid">
+        {% for spot in spots %}
+            <div class="spot-card {{ spot.isOccupied ? 'occupied' : 'free' }}" data-spot-id="{{ spot.id }}">
+                <div class="spot-name">{{ spot.name }}</div>
+                <div class="spot-status">
+                    {{ spot.isOccupied ? 'Occupée' : 'Libre' }}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        // Fonction pour rafraîchir l'état du parking
+        async function fetchParkingStatus() {
+            try {
+                const response = await fetch('/api/parking/status');
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                
+                data.forEach(spot => {
+                    const card = document.querySelector(`.spot-card[data-spot-id="${spot.id}"]`);
+                    if (card) {
+                        const statusElement = card.querySelector('.spot-status');
+                        
+                        // Mise à jour de la classe CSS
+                        if (spot.isOccupied) {
+                            if (!card.classList.contains('occupied')) {
+                                card.classList.remove('free');
+                                card.classList.add('occupied');
+                                statusElement.textContent = 'Occupée';
+                            }
+                        } else {
+                            if (!card.classList.contains('free')) {
+                                card.classList.remove('occupied');
+                                card.classList.add('free');
+                                statusElement.textContent = 'Libre';
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Erreur lors de l'actualisation:", error);
+            }
+        }
+
+        // Rafraîchir toutes les 3 secondes
+        setInterval(fetchParkingStatus, 3000);
+    </script>
+{% endblock %}

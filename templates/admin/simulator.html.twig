@@ -1,0 +1,96 @@
+{% extends 'admin/base_admin.html.twig' %}
+
+{% block title %}Simulateur ESP32{% endblock %}
+
+{% block body %}
+    <h1>Simulateur de Capteurs (Backtesting)</h1>
+
+    <div class="card" style="margin-bottom: 2rem; background: #1e293b; color: white;">
+        <h3 style="color: #94a3b8; font-size: 1rem; margin-bottom: 1rem;">Console de Simulation</h3>
+        <div id="sim-console" style="background: #020617; padding: 1rem; border-radius: 4px; height: 150px; overflow-y: auto; font-family: monospace; font-size: 0.9rem;">
+            <div style="color: #10b981;">> Simulateur initialisé. Prêt à envoyer des données à /api/sensor/data...</div>
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+        {% for spot in spots %}
+            <div class="card" style="border: 2px solid {{ spot.isOccupied ? '#ef4444' : '#10b981' }};">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h2 style="margin: 0; font-size: 1.5rem;">{{ spot.name }}</h2>
+                    <span id="badge-{{ spot.id }}" style="background: {{ spot.isOccupied ? '#ef4444' : '#10b981' }}; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 600; font-size: 0.85rem;">
+                        {{ spot.isOccupied ? 'Occupé' : 'Libre' }}
+                    </span>
+                </div>
+                
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">ESP32 ID Virtuel: <code style="background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 3px;">SIM_ESP_{{ spot.id }}</code></p>
+                
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-danger" style="flex: 1;" onclick="simulateEsp({{ spot.id }}, true, 25.5)">
+                        Simuler Voiture (Occuper)
+                    </button>
+                    <button class="btn btn-success" style="flex: 1;" onclick="simulateEsp({{ spot.id }}, false, 250.0)">
+                        Simuler Départ (Libérer)
+                    </button>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+{% endblock %}
+
+{% block javascripts %}
+<script>
+    function logToConsole(message, type = 'info') {
+        const consoleEl = document.getElementById('sim-console');
+        const color = type === 'error' ? '#ef4444' : (type === 'success' ? '#10b981' : '#cbd5e1');
+        const time = new Date().toLocaleTimeString();
+        
+        const line = document.createElement('div');
+        line.style.color = color;
+        line.style.paddingBottom = '4px';
+        line.innerHTML = `[${time}] ${message}`;
+        
+        consoleEl.appendChild(line);
+        consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+
+    async function simulateEsp(spotId, isOccupied, distance) {
+        const payload = {
+            esp32Id: `SIM_ESP_${spotId}`,
+            spotId: spotId,
+            distanceCm: distance,
+            isOccupied: isOccupied
+        };
+
+        logToConsole(`Envoi HTTP POST > /api/sensor/data (ESP: ${payload.esp32Id}, Occupé: ${isOccupied})`);
+
+        try {
+            const response = await fetch('/api/sensor/data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                logToConsole(`Succès: ${data.message}`, 'success');
+                
+                // Rafraîchissement local visuel
+                const badge = document.getElementById(`badge-${spotId}`);
+                if (badge) {
+                    badge.style.background = isOccupied ? '#ef4444' : '#10b981';
+                    badge.innerText = isOccupied ? 'Occupé' : 'Libre';
+                    badge.parentElement.parentElement.style.borderColor = isOccupied ? '#ef4444' : '#10b981';
+                }
+            } else {
+                const error = await response.json();
+                logToConsole(`Erreur serveur: ${error.error}`, 'error');
+            }
+        } catch (e) {
+            logToConsole(`Exception levée: ${e.message}`, 'error');
+        }
+    }
+</script>
+{% endblock %}
