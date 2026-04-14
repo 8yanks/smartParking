@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Administration - Parking{% endblock %}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-sidebar: #0f172a;
+            --bg-main: #f8fafc;
+            --text-sidebar: #cbd5e1;
+            --text-main: #334155;
+            --primary: #3b82f6;
+            --border-color: #e2e8f0;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Outfit', sans-serif; display: flex; min-height: 100vh; background: var(--bg-main); color: var(--text-main); }
+        
+        .sidebar { width: 250px; background: var(--bg-sidebar); color: var(--text-sidebar); display: flex; flex-direction: column; }
+        .sidebar-header { padding: 1.5rem; font-size: 1.5rem; font-weight: 800; color: white; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-header span { color: var(--primary); }
+        .sidebar-nav { flex: 1; padding: 1.5rem 0; }
+        .sidebar-nav a { display: block; padding: 0.75rem 1.5rem; color: var(--text-sidebar); text-decoration: none; transition: 0.3s; }
+        .sidebar-nav a:hover, .sidebar-nav a.active { background: rgba(255,255,255,0.1); color: white; border-left: 4px solid var(--primary); }
+        
+        .main-content { flex: 1; display: flex; flex-direction: column; }
+        .topbar { background: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); }
+        .content { padding: 2rem; overflow-y: auto; }
+        
+        .card { background: white; border-radius: 8px; padding: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid var(--border-color); margin-bottom: 1.5rem; }
+        h1 { font-size: 2rem; margin-bottom: 1.5rem; color: #1e293b; }
+        
+        .btn { padding: 0.5rem 1rem; border-radius: 6px; border: none; cursor: pointer; font-weight: 600; font-family: 'Outfit', sans-serif; transition: 0.3s; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-success { background: #10b981; color: white; }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-header">Admin<span>Panel</span></div>
+        <nav class="sidebar-nav">
+            <a href="{{ path('admin_dashboard') }}">Vue Globale</a>
+            <a href="{{ path('admin_simulator_index') }}">Simulateur ESP32</a>
+            <a href="{{ path('app_home') }}">Retour au site</a>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <header class="topbar">
+            <div><strong>Connecté en tant que:</strong> {{ app.user.email }}</div>
+            <a href="{{ path('app_logout') }}" class="btn btn-primary" style="text-decoration: none;">Déconnexion</a>
+        </header>
+        <section class="content">
+            {% block body %}{% endblock %}
+        </section>
+    </main>
+    
+    {% block javascripts %}{% endblock %}
+</body>
+</html>

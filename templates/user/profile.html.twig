@@ -1,0 +1,159 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Mon Profil{% endblock %}
+
+{% block body %}
+<style>
+    .profile-header {
+        margin-bottom: 3rem;
+    }
+    .profile-header h1 {
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin-bottom: 0.5rem;
+    }
+    .profile-header p {
+        color: var(--text-muted);
+        font-size: 1.1rem;
+    }
+    
+    .reservation-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .resa-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 16px;
+        padding: 1.5rem;
+        backdrop-filter: blur(12px);
+    }
+    .resa-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .resa-spot {
+        font-size: 1.2rem;
+        font-weight: 800;
+        color: white;
+    }
+    .badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 800;
+    }
+    .badge-pending { background: rgba(245, 158, 11, 0.1); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.2); }
+    .badge-confirmed { background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); }
+    .badge-cancelled { background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); }
+
+    .resa-details p {
+        margin-bottom: 0.5rem;
+        color: var(--text-muted);
+        font-size: 0.95rem;
+    }
+    .resa-price {
+        margin-top: 1rem;
+        font-size: 1.2rem;
+        font-weight: 800;
+        color: var(--primary);
+    }
+    
+    .btn-pay-small {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        background: #10b981;
+        color: white;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+    .btn-cancel {
+        background: transparent;
+        border: 1px solid #ef4444;
+        color: #ef4444;
+    }
+    .btn-cancel:hover {
+        background: rgba(239, 68, 68, 0.1);
+    }
+
+    .alert-success {
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        color: #6ee7b7;
+        padding: 1rem;
+        border-radius: 12px;
+        margin-bottom: 2rem;
+    }
+</style>
+
+<div class="profile-header">
+    <h1>Mon Espace</h1>
+    <p>Bienvenue {{ app.user.firstName }}, voici l'historique de vos réservations.</p>
+</div>
+
+{% for message in app.flashes('success') %}
+    <div class="alert-success">
+        {{ message }}
+    </div>
+{% endfor %}
+{% for message in app.flashes('info') %}
+    <div class="alert-success" style="color: #60a5fa; border-color: rgba(59, 130, 246, 0.3); background: rgba(59, 130, 246, 0.1);">
+        {{ message }}
+    </div>
+{% endfor %}
+
+{% for message in app.flashes('error') %}
+    <div class="alert-success" style="color: #fca5a5; border-color: rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.1);">
+        {{ message }}
+    </div>
+{% endfor %}
+
+{% if reservations is empty %}
+    <div class="resa-card" style="text-align: center; padding: 3rem;">
+        <p style="color: var(--text-muted); margin-bottom: 1rem;">Vous n'avez encore aucune réservation.</p>
+        <a href="{{ path('app_reservation_new') }}" class="btn-pay-small" style="background: var(--primary);">Réserver ma première place</a>
+    </div>
+{% else %}
+    <div class="reservation-list">
+        {% for resa in reservations %}
+            <div class="resa-card">
+                <div class="resa-header">
+                    <div class="resa-spot">{{ resa.parkingSpot.name }}</div>
+                    {% if resa.status == 'CONFIRMED' %}
+                        <span class="badge badge-confirmed">Confirmée</span>
+                    {% elseif resa.status == 'CANCELLED' %}
+                        <span class="badge badge-cancelled">Annulée</span>
+                    {% else %}
+                        <span class="badge badge-pending">En attente</span>
+                    {% endif %}
+                </div>
+                <div class="resa-details">
+                    <p><strong>Début:</strong> {{ resa.startTime|date('d/m/Y à H:i') }}</p>
+                    <p><strong>Fin:</strong> {{ resa.endTime|date('d/m/Y à H:i') }}</p>
+                    <div class="resa-price">{{ resa.totalPrice }} €</div>
+                    
+                    {% if resa.status != 'CANCELLED' %}
+                        <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                            {% if resa.status == 'PENDING' %}
+                                <a href="{{ path('app_payment_simulate', {id: resa.id}) }}" class="btn-pay-small">Procéder au paiement</a>
+                            {% endif %}
+                            
+                            {% if resa.startTime > date('+7 days') %}
+                                <a href="{{ path('app_reservation_cancel', {id: resa.id}) }}" class="btn-pay-small btn-cancel" onclick="return confirm('Êtes-vous sûr de vouloir annuler cette réservation ?')">Annuler</a>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% endif %}
+{% endblock %}

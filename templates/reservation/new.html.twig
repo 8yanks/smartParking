@@ -1,0 +1,118 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Nouvelle Réservation{% endblock %}
+
+{% block body %}
+<style>
+    .glass-panel {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 24px;
+        padding: 3rem;
+        backdrop-filter: blur(20px);
+        max-width: 600px;
+        margin: 0 auto;
+    }
+    .form-title {
+        font-size: 2.2rem;
+        font-weight: 800;
+        margin-bottom: 2rem;
+        text-align: center;
+        background: linear-gradient(to right, #fff, #94a3b8);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    .glass-input {
+        width: 100%;
+        padding: 1rem 1.2rem;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: var(--text-main);
+        font-family: inherit;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+    .glass-input:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+    }
+    .glass-input option {
+        background: #0f172a; /* fond sombre nativement pour les options */
+        color: white;
+    }
+    .btn-submit {
+        width: 100%;
+        padding: 1rem;
+        border-radius: 12px;
+        background: linear-gradient(135deg, var(--primary), #2563eb);
+        color: white;
+        border: none;
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s ease;
+        margin-top: 1.5rem;
+    }
+    .btn-submit:hover { transform: translateY(-2px); }
+    .alert-error {
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        color: #fca5a5;
+        padding: 1rem;
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+    }
+</style>
+
+<div class="glass-panel">
+    <h1 class="form-title">Réserver une place</h1>
+
+    {% for message in app.flashes('error') %}
+        <div class="alert-error">
+            {{ message }}
+        </div>
+    {% endfor %}
+
+    {{ form_start(form) }}
+        <div style="margin-bottom: 1.5rem;">
+            {{ form_label(form.parkingSpot, null, {'label_attr': {'style': 'display:block; margin-bottom:0.5rem; font-weight:600; color:var(--text-muted);'}}) }}
+            {{ form_widget(form.parkingSpot) }}
+            {{ form_errors(form.parkingSpot) }}
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+            <div>
+                {{ form_label(form.startTime, null, {'label_attr': {'style': 'display:block; margin-bottom:0.5rem; font-weight:600; color:var(--text-muted);'}}) }}
+                {{ form_widget(form.startTime) }}
+                {{ form_errors(form.startTime) }}
+            </div>
+            <div>
+                {{ form_label(form.endTime, null, {'label_attr': {'style': 'display:block; margin-bottom:0.5rem; font-weight:600; color:var(--text-muted);'}}) }}
+                {{ form_widget(form.endTime) }}
+                {{ form_errors(form.endTime) }}
+            </div>
+        </div>
+
+        <button class="btn-submit" type="submit">Vérifier la disponibilité & Continuer</button>
+    {{ form_end(form) }}
+</div>
+
+<!-- Ajout de Flatpickr pour forcer un calendrier propre et au format FR (JJ/MM/AAAA) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" type="text/css" href="https://npmcdn.com/flatpickr/dist/themes/dark.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://npmcdn.com/flatpickr/dist/l10n/fr.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        flatpickr(".datetime-picker", {
+            enableTime: true,
+            dateFormat: "d/m/Y H:i",
+            time_24hr: true,
+            locale: "fr"
+        });
+    });
+</script>
+{% endblock %}
