@@ -22,3 +22,11 @@ services:
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
+
+    App\Security\ApiKeyAuthenticator:
+        arguments:
+            $parkingApiKey: '%env(PARKING_API_KEY)%'
+
+    App\Controller\Api\SensorDataController:
+        arguments:
+            $parkingApiKey: '%env(PARKING_API_KEY)%'
