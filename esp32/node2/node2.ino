@@ -8,9 +8,12 @@
 // ===================================================
 // CONFIGURATION — À MODIFIER AVANT DE FLASHER
 // ===================================================
-const char* WIFI_SSID     = "NOM_DE_VOTRE_WIFI";
-const char* WIFI_PASSWORD = "MOT_DE_PASSE_WIFI";
-const char* SERVER_IP     = "192.168.1.100";  // IP du PC Symfony
+// RÉSEAU : Hotspot WiFi créé par le PC Windows (192.168.137.1)
+// Paramètres → Réseau → Point d'accès sans fil
+// SSID : ParkingIntelligent | MDP : parking2026
+const char* WIFI_SSID     = "ParkingIntelligent";
+const char* WIFI_PASSWORD = "parking2026";
+const char* SERVER_IP     = "192.168.137.1";  // IP fixe du hotspot Windows — ne change jamais
 const int   SERVER_PORT   = 8000;
 const char* API_KEY       = "une_cle_secrete_longue_pour_esp32_changez_moi";
 const char* ESP32_ID      = "node-2";
