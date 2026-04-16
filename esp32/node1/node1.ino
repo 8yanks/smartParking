@@ -40,6 +40,20 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 const float THRESHOLD_CM = 20.0;
 // ===================================================
 
+// ===================================================
+// ARCHITECTURE : AUTONOMIE vs REPORTING
+// ===================================================
+// Ce nœud fonctionne en 2 couches indépendantes :
+//
+// COUCHE 1 — AUTONOME (pas de réseau requis)
+//   Capteurs → mesure distance → LEDs allumées/éteintes
+//   Réponse : ~50ms, fonctionne même si WiFi est coupé
+//
+// COUCHE 2 — REPORTING (best-effort, timeout 1s)
+//   Envoi des données au serveur Symfony local
+//   Si le serveur est lent ou injoignable : on skip, pas de blocage
+// ===================================================
+
 void connectWifi() {
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     Serial.print("Connexion WiFi");
@@ -99,15 +113,16 @@ void updateDisplay(bool occ1, bool occ2) {
 
 void sendSpotData(int spotId, bool occupied, float distanceCm) {
     if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("WiFi déconnecté, reconnexion...");
-        connectWifi();
-        return;
+        Serial.println("⚠ WiFi perdu — LED autonomes, pas d'envoi serveur");
+        return; // On ne bloque pas, on skip juste l'envoi
     }
 
     HTTPClient http;
     String url = "http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/sensor/data";
 
     http.begin(url);
+    http.setTimeout(1000); // 1 seconde maximum
+    http.setConnectTimeout(1000);
     http.addHeader("Content-Type", "application/json");
     http.addHeader("X-API-Key", API_KEY);
 
@@ -164,22 +179,33 @@ void setup() {
 }
 
 void loop() {
-    // Mesure place 1
+    // Reconnexion WiFi si nécessaire (non-bloquant après 1 tentative)
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("WiFi perdu, tentative reconnexion...");
+        WiFi.reconnect();
+        delay(2000);
+        // On continue quand même — les LEDs fonctionnent sans WiFi
+    }
+
+    // 1. Mesures instantanées (indépendant du réseau)
     float dist1 = measureDistance(TRIG_1, ECHO_1);
     bool occ1   = (dist1 > 0 && dist1 < THRESHOLD_CM);
-    digitalWrite(LED_1, occ1 ? HIGH : LOW);
-    sendSpotData(SPOT_ID_1, occ1, dist1);
-    delay(500);
 
-    // Mesure place 2
     float dist2 = measureDistance(TRIG_2, ECHO_2);
     bool occ2   = (dist2 > 0 && dist2 < THRESHOLD_CM);
-    digitalWrite(LED_2, occ2 ? HIGH : LOW);
-    sendSpotData(SPOT_ID_2, occ2, dist2);
-    delay(500);
 
-    // Mise à jour affichage OLED
+    // 2. LEDs instantanées (indépendant du réseau)
+    digitalWrite(LED_1, occ1 ? HIGH : LOW);
+    digitalWrite(LED_2, occ2 ? HIGH : LOW);
+
+    // 3. Affichage OLED (indépendant du réseau)
     updateDisplay(occ1, occ2);
 
+    // 4. Reporting serveur (best-effort, timeout 1s)
+    sendSpotData(SPOT_ID_1, occ1, dist1);
+    delay(200);
+    sendSpotData(SPOT_ID_2, occ2, dist2);
+
+    // 5. Pause avant prochain cycle
     delay(4000);
 }
