@@ -5,28 +5,31 @@
 // ===================================================
 // CONFIGURATION — À MODIFIER AVANT DE FLASHER
 // ===================================================
-const char* WIFI_SSID       = "NOM_DE_VOTRE_WIFI";
-const char* WIFI_PASSWORD   = "MOT_DE_PASSE_WIFI";
-const char* SERVER_IP       = "192.168.1.100";   // IP du PC qui fait tourner Symfony
-const int   SERVER_PORT     = 8000;
-const char* API_KEY         = "une_cle_secrete_longue_pour_esp32_changez_moi";
-const char* ESP32_ID        = "node-3";           // Identifiant de ce nœud
+const char* WIFI_SSID     = "NOM_DE_VOTRE_WIFI";
+const char* WIFI_PASSWORD = "MOT_DE_PASSE_WIFI";
+const char* SERVER_IP     = "192.168.1.100";  // IP du PC Symfony
+const int   SERVER_PORT   = 8000;
+const char* API_KEY       = "une_cle_secrete_longue_pour_esp32_changez_moi";
+const char* ESP32_ID      = "node-3";
 
-// IDs des places gérées par CE nœud
-const int SPOT_ID_1 = 5;
-const int SPOT_ID_2 = 6;
+// Places gérées par ce nœud
+const int SPOT_ID_1 = 5;  // Place B2
+const int SPOT_ID_2 = 6;  // Place B3
 
-// Broches capteur 1 (place SPOT_ID_1)
+// Broches capteur 1 (place B2)
 const int TRIG_1 = 5;
 const int ECHO_1 = 18;
 
-// Broches capteur 2 (place SPOT_ID_2)
+// Broches capteur 2 (place B3)
 const int TRIG_2 = 19;
-const int ECHO_2 = 21;
+const int ECHO_2 = 21;  // Pas d'OLED sur ce nœud, GPIO 21 disponible
 
-// Distance seuil : en-dessous = voiture présente
+// Broches LEDs
+const int LED_1 = 2;
+const int LED_2 = 4;
+
+// Seuil de détection
 const float THRESHOLD_CM = 20.0;
-
 // ===================================================
 
 void connectWifi() {
@@ -39,9 +42,9 @@ void connectWifi() {
         attempts++;
     }
     if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("\n✓ WiFi connecté : " + WiFi.localIP().toString());
+        Serial.println("\n✓ WiFi : " + WiFi.localIP().toString());
     } else {
-        Serial.println("\n✗ WiFi non connecté, nouvelle tentative au prochain cycle");
+        Serial.println("\n✗ WiFi non connecté");
     }
 }
 
@@ -51,9 +54,8 @@ float measureDistance(int trigPin, int echoPin) {
     digitalWrite(trigPin, HIGH);
     delayMicroseconds(10);
     digitalWrite(trigPin, LOW);
-
-    long duration = pulseIn(echoPin, HIGH, 30000); // timeout 30ms
-    if (duration == 0) return -1; // pas de réponse
+    long duration = pulseIn(echoPin, HIGH, 30000);
+    if (duration == 0) return -1;
     return (duration * 0.034) / 2.0;
 }
 
@@ -93,8 +95,15 @@ void sendSpotData(int spotId, bool occupied, float distanceCm) {
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("\n=== Parking Intelligent — " + String(ESP32_ID) + " ===");
+    Serial.println("\n=== Parking Intelligent — node-3 ===");
 
+    // LEDs
+    pinMode(LED_1, OUTPUT);
+    pinMode(LED_2, OUTPUT);
+    digitalWrite(LED_1, LOW);
+    digitalWrite(LED_2, LOW);
+
+    // Capteurs
     pinMode(TRIG_1, OUTPUT);
     pinMode(ECHO_1, INPUT);
     pinMode(TRIG_2, OUTPUT);
@@ -104,18 +113,19 @@ void setup() {
 }
 
 void loop() {
-    // Mesure capteur 1
+    // Mesure place B2
     float dist1 = measureDistance(TRIG_1, ECHO_1);
     bool occ1   = (dist1 > 0 && dist1 < THRESHOLD_CM);
+    digitalWrite(LED_1, occ1 ? HIGH : LOW);
     sendSpotData(SPOT_ID_1, occ1, dist1);
     delay(500);
 
-    // Mesure capteur 2
+    // Mesure place B3
     float dist2 = measureDistance(TRIG_2, ECHO_2);
     bool occ2   = (dist2 > 0 && dist2 < THRESHOLD_CM);
+    digitalWrite(LED_2, occ2 ? HIGH : LOW);
     sendSpotData(SPOT_ID_2, occ2, dist2);
     delay(500);
 
-    // Pause avant prochain cycle (~4s + 2x0.5s = ~5s total)
     delay(4000);
 }

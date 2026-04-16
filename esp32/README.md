@@ -5,11 +5,23 @@
 - 6x Capteur ultrason HC-SR04A
 - Jumpers, résistances, breadboard
 
+## Bibliothèques Arduino à installer
+
+Outils → Gérer les bibliothèques → chercher et installer :
+- **ArduinoJson** par Benoit Blanchon (version 6.x)
+- **Adafruit SSD1306** par Adafruit
+- **Adafruit GFX Library** par Adafruit
+
+Ces bibliothèques sont nécessaires pour les nœuds 1 et 2 (OLED).
+Le nœud 3 n'a pas besoin de Adafruit SSD1306 ni Adafruit GFX.
+
 ## Avant de flasher
 
 1. Ouvrir le fichier `.ino` du nœud voulu dans Arduino IDE
 2. Installer les bibliothèques nécessaires (Outils → Gérer les bibliothèques) :
    - **ArduinoJson** par Benoit Blanchon (v6.x)
+   - **Adafruit SSD1306** par Adafruit (nœuds 1 & 2 uniquement)
+   - **Adafruit GFX Library** par Adafruit (nœuds 1 & 2 uniquement)
    - **HTTPClient** (inclus avec le support ESP32)
 3. Ajouter le support ESP32 dans Arduino IDE :
    - Fichier → Préférences → URL de gestionnaire de cartes supplémentaires :
