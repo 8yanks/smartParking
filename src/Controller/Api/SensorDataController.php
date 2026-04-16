@@ -14,12 +14,24 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route('/api', name: 'api_')]
 class SensorDataController extends AbstractController
 {
+    private string $parkingApiKey;
+
+    public function __construct(string $parkingApiKey)
+    {
+        $this->parkingApiKey = $parkingApiKey;
+    }
+
     #[Route('/sensor/data', name: 'sensor_data_post', methods: ['POST'])]
     public function receiveData(
-        Request $request, 
-        ParkingSpotRepository $parkingSpotRepository, 
+        Request $request,
+        ParkingSpotRepository $parkingSpotRepository,
         EntityManagerInterface $em
     ): JsonResponse {
+        $apiKey = $request->headers->get('X-API-Key');
+        if ($apiKey !== $this->parkingApiKey) {
+            return $this->json(['error' => 'Clé API invalide. Header X-API-Key requis.'], Response::HTTP_UNAUTHORIZED);
+        }
+
         $content = $request->getContent();
         $data = json_decode($content, true);
 
