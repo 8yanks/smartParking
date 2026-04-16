@@ -29,30 +29,40 @@ Le nœud 3 n'a pas besoin de Adafruit SSD1306 ni Adafruit GFX.
    - Outils → Type de carte → Gestionnaire de cartes → chercher "esp32" → Installer
 4. Sélectionner la carte : Outils → Type de carte → ESP32 → **NodeMCU-32S** ou **ESP32 Dev Module**
 
-## Configuration (dans chaque .ino)
+## Configuration réseau — Hotspot Windows (recommandé)
 
-Modifier ces lignes en haut du fichier :
-```cpp
-const char* WIFI_SSID     = "NOM_DE_VOTRE_WIFI";
-const char* WIFI_PASSWORD = "MOT_DE_PASSE_WIFI";
-const char* SERVER_IP     = "192.168.1.100"; // IP du PC (voir ci-dessous)
-```
+Le PC crée lui-même un réseau WiFi. Les ESP32 s'y connectent directement.
+Aucun routeur, aucune connexion internet, aucun réseau école requis.
 
-## Trouver l'IP du serveur
+### Activer le Hotspot sur le PC
+1. Paramètres → Réseau et Internet → Point d'accès sans fil
+2. Activer le point d'accès
+3. Configurer :
+   - Nom du réseau : `ParkingIntelligent`
+   - Mot de passe : `parking2026`
+   - Partager depuis : WiFi ou Ethernet (au choix)
 
-Sur le PC qui fait tourner Symfony, ouvrir un terminal et taper :
-- Windows : `ipconfig` → chercher "Adresse IPv4" sous votre connexion WiFi
-- L'IP ressemble à `192.168.1.X` ou `192.168.0.X`
+**L'IP du PC est toujours `192.168.137.1` sur un hotspot Windows — aucune configuration supplémentaire.**
 
-## Lancer le serveur Symfony
-
+### Lancer Symfony
 ```bash
-cd C:/Users/yanis/Documents/Cours/Projet/siteReservation
 symfony server:start --no-tls
 ```
+Le serveur écoute sur `http://192.168.137.1:8000` pour les ESP32
+et sur `http://127.0.0.1:8000` pour le navigateur du PC.
 
-Le serveur écoute sur le port 8000. L'ESP32 envoie ses données à :
-`http://192.168.1.X:8000/api/sensor/data`
+### Les .ino sont déjà configurés
+`SERVER_IP = "192.168.137.1"` est déjà en dur dans tous les fichiers.
+Seul le flashage est nécessaire, pas de modification.
+
+## Option B — Partage de connexion 4G (téléphone)
+
+Si le hotspot PC ne fonctionne pas :
+1. Activer le partage de connexion sur votre téléphone
+2. Connecter le PC au réseau du téléphone
+3. Faire `ipconfig` sur le PC → noter l'IP WiFi (ex: 192.168.43.x)
+4. Modifier `SERVER_IP` dans les .ino avec cette IP
+5. Flasher à nouveau les ESP32
 
 ## Correspondance nœuds ↔ places
 
