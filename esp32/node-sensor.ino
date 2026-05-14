@@ -22,7 +22,7 @@
 // ============================================================
 const char* WIFI_SSID     = "NOM_DE_VOTRE_WIFI";
 const char* WIFI_PASSWORD = "MOT_DE_PASSE_WIFI";
-const char* SERVER_URL    = "https://votre-serveur.fr"; // sans slash final
+const char* SERVER_URL    = "http://192.168.137.1:3000"; // IP du PC sur le hotspot, sans slash final
 const char* API_KEY       = "une_cle_secrete_longue_changez_moi";
 
 // >>> Spécifique à chaque nœud — décommenter le bon bloc <<<
