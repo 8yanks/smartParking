@@ -2348,115 +2348,72 @@ git commit -m "feat: en-têtes sécurité HTTP (X-Frame-Options, nosniff, Referr
 
 ---
 
-## Task 11 : Code Arduino ESP32 (référence)
+## Task 11 : Code Arduino ESP32
 
-Ce fichier est à flasher sur l'ESP32 — il n'est pas du code PHP mais est inclus pour référence.
+Le code embarqué se trouve dans le dossier `esp32/` à la racine du repo. Cette tâche se contente de vérifier que les fichiers existent et de configurer/flasher chaque nœud.
+
+**Architecture matérielle** (voir `esp32/README.md` pour le câblage GPIO complet) :
+
+| Nœud | Sketch | Rôle | Capteurs | LEDs | OLEDs |
+|------|--------|------|----------|------|-------|
+| #1 "panneau" | `esp32/node-1.ino` | Capteurs places 1-2 + panneau d'information à l'entrée | 2× HC-SR04A | 2 | **2× SSD1306 SPI** |
+| #2 | `esp32/node-sensor.ino` | Capteurs places 3-4 | 2× HC-SR04A | 2 | — |
+| #3 | `esp32/node-sensor.ino` | Capteurs places 5-6 | 2× HC-SR04A | 2 | — |
 
 **Files:**
-- Create: `esp32/parking_sensor.ino`
+- Existing: `esp32/node-1.ino`
+- Existing: `esp32/node-sensor.ino`
+- Existing: `esp32/README.md`
 
-- [ ] **Step 1 : Créer le dossier et le fichier Arduino**
+**Bibliothèques Arduino requises :**
+- `WiFi`, `HTTPClient` (intégrées au core ESP32)
+- `ArduinoJson` (Benoit Blanchon)
+- `Adafruit GFX Library` + `Adafruit SSD1306` (uniquement pour le nœud #1)
+
+- [ ] **Step 1 : Vérifier la présence des fichiers**
 
 ```bash
-mkdir esp32
+ls esp32/
+# attendu : node-1.ino  node-sensor.ino  README.md
 ```
 
-Créez `esp32/parking_sensor.ino` :
+- [ ] **Step 2 : Configurer chaque sketch**
+
+Dans chaque `.ino`, remplacer en haut du fichier :
 ```cpp
-#include <WiFi.h>
-#include <HTTPClient.h>
-#include <ArduinoJson.h>
-
-// === CONFIGURATION — À MODIFIER ===
-const char* WIFI_SSID     = "NOM_DE_VOTRE_WIFI";
-const char* WIFI_PASSWORD = "MOT_DE_PASSE_WIFI";
-const char* SERVER_URL    = "https://votre-serveur.fr/api/spot/";
-const char* API_KEY       = "une_cle_secrete_longue_pour_esp32_changez_moi";
-const char* ESP32_ID      = "node-1";
-
-// Broches des capteurs ultrasoniques HC-SR04A
-// Format : {TRIG, ECHO, spot_id}
-const int SENSORS[][3] = {
-    {5, 18, 1},  // Capteur 1 → place parking ID 1
-    {19, 21, 2}, // Capteur 2 → place parking ID 2
-};
-const int NUM_SENSORS = 2; // Nombre de capteurs sur ce nœud
-
-// Distance seuil : en dessous = voiture présente
-const float DISTANCE_THRESHOLD_CM = 20.0;
-
-void setup() {
-    Serial.begin(115200);
-    for (int i = 0; i < NUM_SENSORS; i++) {
-        pinMode(SENSORS[i][0], OUTPUT); // TRIG
-        pinMode(SENSORS[i][1], INPUT);  // ECHO
-    }
-    connectWifi();
-}
-
-void connectWifi() {
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    Serial.print("Connexion WiFi");
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-    }
-    Serial.println("\nWiFi connecté : " + WiFi.localIP().toString());
-}
-
-float measureDistance(int trigPin, int echoPin) {
-    digitalWrite(trigPin, LOW);
-    delayMicroseconds(2);
-    digitalWrite(trigPin, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(trigPin, LOW);
-
-    long duration = pulseIn(echoPin, HIGH, 30000); // timeout 30ms
-    return (duration * 0.034) / 2.0;
-}
-
-void sendSpotStatus(int spotId, bool occupied, float distance) {
-    if (WiFi.status() != WL_CONNECTED) {
-        connectWifi();
-    }
-
-    HTTPClient http;
-    String url = String(SERVER_URL) + String(spotId);
-    http.begin(url);
-    http.addHeader("Content-Type", "application/json");
-    http.addHeader("X-API-Key", API_KEY);
-
-    StaticJsonDocument<200> doc;
-    doc["occupied"]    = occupied;
-    doc["distance_cm"] = distance;
-    doc["esp32_id"]    = ESP32_ID;
-
-    String payload;
-    serializeJson(doc, payload);
-
-    int httpCode = http.POST(payload);
-    Serial.printf("Place %d → %s (%.1f cm) | HTTP %d\n",
-        spotId, occupied ? "OCCUPEE" : "LIBRE", distance, httpCode);
-
-    http.end();
-}
-
-void loop() {
-    for (int i = 0; i < NUM_SENSORS; i++) {
-        float dist = measureDistance(SENSORS[i][0], SENSORS[i][1]);
-        bool occupied = (dist > 0 && dist < DISTANCE_THRESHOLD_CM);
-        sendSpotStatus(SENSORS[i][2], occupied, dist);
-        delay(500); // Pause entre chaque capteur
-    }
-    delay(4000); // Pause globale — envoie toutes les ~5 secondes
-}
+const char* WIFI_SSID     = "...";        // votre SSID
+const char* WIFI_PASSWORD = "...";        // votre mot de passe
+const char* SERVER_URL    = "https://...";// URL du serveur Symfony, sans slash final
+const char* API_KEY       = "...";        // doit matcher la clé X-API-Key côté Symfony
 ```
 
-- [ ] **Step 2 : Commit**
+Pour `node-sensor.ino`, **commenter/décommenter le bon bloc** pour choisir entre node-2 (places 3-4) et node-3 (places 5-6).
+
+- [ ] **Step 3 : Flasher les 3 nœuds**
+
+Avec l'Arduino IDE (Board: "ESP32 Dev Module") :
+- ESP32 #1 → flash `node-1.ino`
+- ESP32 #2 → flash `node-sensor.ino` avec `NODE_ID = "node-2"`
+- ESP32 #3 → flash `node-sensor.ino` avec `NODE_ID = "node-3"`
+
+- [ ] **Step 4 : Vérification au moniteur série (115200 baud)**
+
+Sur chaque nœud, on doit voir :
+```
+[node-X] Boot ...
+[WiFi] OK 192.168.x.x
+[POST] place N LIBRE (47.3 cm) HTTP 200
+```
+
+Sur le nœud #1, le panneau OLED affiche aussi en plus :
+- Gauche : grille des 6 places (LIB / OCC)
+- Droite : "X/6 LIBRES" + heure
+
+- [ ] **Step 5 : Commit**
 
 ```bash
 git add esp32/
-git commit -m "docs: code Arduino ESP32 pour capteurs HC-SR04A"
+git commit -m "feat(esp32): code embarqué — node-1 panneau + node-sensor"
 ```
 
 ---
