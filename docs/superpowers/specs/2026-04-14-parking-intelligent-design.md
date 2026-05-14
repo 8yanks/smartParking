@@ -11,6 +11,12 @@
 
 Site web en **Symfony 7 (PHP 8.3)** pour gérer un parking intelligent de **6 places** équipées de capteurs ultrasons HC-SR04A pilotés par des **ESP32 NodeMCU**.
 
+Côté matériel (voir [`esp32/README.md`](../../../esp32/README.md) pour le câblage détaillé) :
+- **3 ESP32 NodeMCU** (2 capteurs chacun)
+- **6 capteurs HC-SR04A** (un par place)
+- **6 LEDs rouges** (1 par place, allumée si occupée — feedback visuel local)
+- **2 OLEDs SSD1306 SPI** montés ensemble sur le nœud #1, formant un **panneau d'information à l'entrée** (vue carte des 6 places + compteur "X/6 libres" + heure)
+
 Le site expose :
 - Une **API REST sécurisée** pour recevoir les données des ESP32 en temps réel
 - Un **dashboard public** affichant l'état des 6 places
@@ -35,32 +41,66 @@ Le site expose :
 
 ---
 
+## 2 bis. Matériel embarqué
+
+| Composant | Quantité | Rôle |
+|-----------|----------|------|
+| ESP32 NodeMCU | 3 | Microcontrôleur WiFi pilotant les capteurs/LEDs/écrans |
+| Capteur ultrason HC-SR04A | 6 | Mesure la présence d'un véhicule (1 par place) |
+| LED rouge 5 mm + R 220 Ω | 6 (+1 spare) | Indicateur visuel local par place (allumée si occupée) |
+| OLED SBC-OLED01-V2 (SSD1306 128×64, SPI) | 2 | Panneau d'information à l'entrée — montés sur le nœud #1 |
+| Câbles Dupont, breadboard, alim USB 5V | — | Câblage et alim |
+
+**Répartition par nœud** :
+- **Nœud #1 "panneau"** : capteurs places 1-2 + 2 LEDs + **2 OLEDs SPI** formant le panneau
+- **Nœud #2** : capteurs places 3-4 + 2 LEDs
+- **Nœud #3** : capteurs places 5-6 + 2 LEDs
+
+Code embarqué : voir `esp32/node-1.ino` (panneau) et `esp32/node-sensor.ino` (réutilisé pour #2 et #3). Câblage GPIO détaillé : voir [`esp32/README.md`](../../../esp32/README.md).
+
+---
+
 ## 3. Architecture
 
 ```
-[ESP32 Nœuds capteurs]
-        │
-        │ HTTPS POST + X-API-Key
-        ▼
-[API REST Symfony]  ──►  [MySQL Database]
-                                │
-                    [Symfony Controllers / Services]
-                                │
-          ┌─────────────────────┼─────────────────────┐
-     [Dashboard]         [Réservation]          [Admin Panel]
-     [Temps réel]        [Paiement]             [Statistiques]
-                         [Abonnement]
+                              ┌──────── ESP32 #1 "panneau" ────────┐
+                              │  2 capteurs (places 1-2)           │
+                              │  2 LEDs locales                    │
+                              │  2 OLED SSD1306 SPI                │
+                              │  ▲ POST /api/spot/{1,2}            │
+                              │  ▼ GET  /api/spots (panneau)       │
+                              └──────────────┬─────────────────────┘
+                                             │
+[ESP32 #2 capteurs places 3-4] ──────────────┤  HTTPS + X-API-Key
+[ESP32 #3 capteurs places 5-6] ──────────────┤
+                                             ▼
+                                  [API REST Symfony]  ──►  [MySQL Database]
+                                             │
+                              [Symfony Controllers / Services]
+                                             │
+                    ┌────────────────────────┼────────────────────────┐
+               [Dashboard]            [Réservation]            [Admin Panel]
+               [Temps réel]           [Paiement]               [Statistiques]
+                                      [Abonnement]
 ```
 
 **Communication ESP32 → Serveur :**
-- L'ESP32 envoie un `POST /api/spot/{id}` toutes les N secondes
+- Chaque ESP32 envoie un `POST /api/spot/{id}` toutes les ~5 secondes
 - Header `X-API-Key: <clé_secrète>` obligatoire
 - Body JSON : `{"occupied": true, "esp32_id": "node-1", "distance_cm": 12.5}`
 - Réponse serveur : `200 OK` ou `401 Unauthorized`
 
+**Communication Serveur → ESP32 #1 (panneau) :**
+- Le nœud #1 appelle `GET /api/spots` toutes les ~5 secondes pour rafraîchir l'affichage du panneau OLED
+- Réponse : `[{"id":1, "name":"Place A1", "is_occupied":false}, ...]`
+
 **Rafraîchissement dashboard :**
 - Le navigateur appelle `GET /api/spots` toutes les 5 secondes via `fetch()`
 - Mise à jour dynamique du DOM sans rechargement de page
+
+**Feedback physique pour l'usager :**
+- LED rouge allumée à côté de chaque place occupée (réaction immédiate, pilotée localement par l'ESP32 du nœud)
+- Panneau OLED double à l'entrée du parking : carte des 6 places + nombre de places libres en gros chiffres + heure
 
 ---
 
@@ -254,8 +294,8 @@ siteReservation/
 3. Il va sur `/reservation`, choisit la place 3, créneaux 14h-16h
 4. Il est redirigé vers `/paiement/reservation` — paie via Stripe
 5. La réservation passe en statut `confirmed`
-6. À 14h, s'il arrive, la barrière/LED reconnaît sa réservation
-7. L'ESP32 détecte la présence → la place passe à `occupied`
+6. À 14h, l'utilisateur arrive sur place — il voit sur le panneau OLED à l'entrée que la place 3 est encore libre
+7. L'ESP32 du nœud capteur détecte sa présence → la place passe à `occupied`, la LED rouge locale s'allume, et le panneau OLED se met à jour au prochain rafraîchissement
 
 **Scénario : l'ESP32 envoie des données**
 
