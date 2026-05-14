@@ -10,7 +10,7 @@ Site web local pour gérer un parking intelligent de **6 places** équipées de 
 ┌──────── ESP32 #1 "panneau" ────────┐
 │  2 capteurs (places 1-2)           │
 │  2 LEDs locales                    │
-│  2 OLED SSD1306 SPI (panneau info) │
+│  2 OLED SSD1306 I2C (panneau info) │
 │  ▲ POST /api/spot/{1,2}            │
 │  ▼ GET  /api/spots                 │
 └──────────────┬─────────────────────┘
@@ -118,7 +118,7 @@ Voir [`esp32/README.md`](esp32/README.md) pour :
 smartParking/
 ├── docs/superpowers/         ← design + plan d'implémentation
 ├── esp32/                    ← sketches Arduino + README câblage
-│   ├── node-1.ino            ← nœud panneau (2 OLEDs SPI)
+│   ├── node-1.ino            ← nœud panneau (2 OLEDs I2C, double-bus)
 │   ├── node-sensor.ino       ← nœuds 2 et 3 (capteurs simples)
 │   └── README.md
 ├── prisma/

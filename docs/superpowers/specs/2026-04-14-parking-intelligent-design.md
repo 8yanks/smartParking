@@ -15,7 +15,7 @@ Côté matériel (voir [`esp32/README.md`](../../../esp32/README.md) pour le câ
 - **3 ESP32 NodeMCU** (2 capteurs chacun)
 - **6 capteurs HC-SR04A** (un par place)
 - **6 LEDs rouges** (1 par place, allumée si occupée — feedback visuel local)
-- **2 OLEDs SSD1306 SPI** montés ensemble sur le nœud #1, formant un **panneau d'information à l'entrée** (vue carte des 6 places + compteur "X/6 libres" + heure)
+- **2 OLEDs SSD1306 I2C (double-bus)** montés ensemble sur le nœud #1, formant un **panneau d'information à l'entrée** (vue carte des 6 places + compteur "X/6 libres" + heure)
 
 Le site expose :
 - Une **API REST sécurisée** pour recevoir les données des ESP32 en temps réel
@@ -48,11 +48,11 @@ Le site expose :
 | ESP32 NodeMCU | 3 | Microcontrôleur WiFi pilotant les capteurs/LEDs/écrans |
 | Capteur ultrason HC-SR04A | 6 | Mesure la présence d'un véhicule (1 par place) |
 | LED rouge 5 mm + R 220 Ω | 6 (+1 spare) | Indicateur visuel local par place (allumée si occupée) |
-| OLED SBC-OLED01-V2 (SSD1306 128×64, SPI) | 2 | Panneau d'information à l'entrée — montés sur le nœud #1 |
+| OLED SBC-OLED01-V2 (SSD1306 128×64, I2C double-bus) | 2 | Panneau d'information à l'entrée — montés sur le nœud #1 |
 | Câbles Dupont, breadboard, alim USB 5V | — | Câblage et alim |
 
 **Répartition par nœud** :
-- **Nœud #1 "panneau"** : capteurs places 1-2 + 2 LEDs + **2 OLEDs SPI** formant le panneau
+- **Nœud #1 "panneau"** : capteurs places 1-2 + 2 LEDs + **2 OLEDs I2C** formant le panneau
 - **Nœud #2** : capteurs places 3-4 + 2 LEDs
 - **Nœud #3** : capteurs places 5-6 + 2 LEDs
 
@@ -66,7 +66,7 @@ Code embarqué : voir `esp32/node-1.ino` (panneau) et `esp32/node-sensor.ino` (r
                               ┌──────── ESP32 #1 "panneau" ────────┐
                               │  2 capteurs (places 1-2)           │
                               │  2 LEDs locales                    │
-                              │  2 OLED SSD1306 SPI                │
+                              │  2 OLED SSD1306 I2C                │
                               │  ▲ POST /api/spot/{1,2}            │
                               │  ▼ GET  /api/spots (panneau)       │
                               └──────────────┬─────────────────────┘
