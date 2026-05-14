@@ -11,12 +11,30 @@ datasource db {
 }
 
 model ParkingSpot {
-  id            Int          @id // 1-6, fixé manuellement par le seed
-  name          String       // "Place A1", "Place A2", ...
-  isOccupied    Boolean      @default(false)
-  lastUpdatedAt DateTime     @default(now()) @updatedAt
-  isActive      Boolean      @default(true)
+  id            Int           @id
+  name          String
+  isOccupied    Boolean       @default(false)
+  lastUpdatedAt DateTime      @default(now()) @updatedAt
+  isActive      Boolean       @default(true)
   sensorData    SensorData[]
+  reservations  Reservation[]
+}
+
+model Reservation {
+  id              Int         @id @default(autoincrement())
+  spotId          Int
+  spot            ParkingSpot @relation(fields: [spotId], references: [id])
+  licensePlate    String
+  startTime       DateTime    @default(now())
+  endTime         DateTime
+  durationMinutes Int
+  amountPaid      Float
+  fineAmount      Float       @default(0)
+  status          String      @default("ACTIVE") // ACTIVE | EXPIRED | COMPLETED | CANCELLED
+  createdAt       DateTime    @default(now())
+
+  @@index([spotId, status])
+  @@index([licensePlate])
 }
 
 model SensorData {

@@ -45,5 +45,7 @@ next-env.d.ts
 # Prisma local SQLite database (regenerated via npm run db:seed)
 prisma/dev.db
 prisma/dev.db-journal
+prisma/parking.db
+prisma/parking.db-journal
 /dev.db
 /dev.db-journal
