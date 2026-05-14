@@ -1,22 +1,20 @@
 /**
  * Parking Intelligent — Nœud #1 "Panneau d'entrée"
  *
- * Rôle :
- *  - Mesure les places 1 et 2 (capteurs HC-SR04A)
- *  - Allume les LEDs locales si occupées
- *  - Pilote 2 OLED SSD1306 SPI formant le panneau d'information à l'entrée
- *      OLED gauche : grille des 6 places (LIB / OCC)
- *      OLED droite : compteur "X/6 LIBRES" + heure (NTP)
- *  - POST l'état des places 1-2 vers /api/spot/{id}
- *  - GET /api/spots toutes les ~5s pour rafraîchir le panneau
+ * Configuration matérielle :
+ *  - 2× HC-SR04A (places 1 et 2)
+ *  - 2× LED rouge (1 par place)
+ *  - 2× SBC-OLED01-V2 (SSD1306 128x64) en I2C
+ *      → 2 bus I2C SÉPARÉS car les 2 OLEDs ont la même adresse 0x3C par défaut
+ *      → évite de devoir re-souder un strap pour passer l'une en 0x3D
  *
- * Dépendances Arduino : WiFi, HTTPClient, ArduinoJson, Adafruit_GFX, Adafruit_SSD1306
+ * Dépendances Arduino : WiFi, HTTPClient, ArduinoJson, Wire, Adafruit_GFX, Adafruit_SSD1306
  */
 
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
-#include <SPI.h>
+#include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <time.h>
@@ -26,16 +24,15 @@
 // ============================================================
 const char* WIFI_SSID     = "NOM_DE_VOTRE_WIFI";
 const char* WIFI_PASSWORD = "MOT_DE_PASSE_WIFI";
-const char* SERVER_URL    = "https://votre-serveur.fr"; // sans slash final
+const char* SERVER_URL    = "http://192.168.137.1:3000"; // IP du PC sur le hotspot, sans slash final
 const char* API_KEY       = "une_cle_secrete_longue_changez_moi";
 const char* NODE_ID       = "node-1";
 
-// Places gérées par ce nœud
 const int SPOT_ID_A = 1;
 const int SPOT_ID_B = 2;
 
 // ============================================================
-// CÂBLAGE GPIO — voir esp32/README.md
+// CÂBLAGE GPIO — voir esp32/WIRING.md
 // ============================================================
 // Capteurs ultrasoniques HC-SR04A
 #define TRIG_A 25
@@ -43,35 +40,36 @@ const int SPOT_ID_B = 2;
 #define TRIG_B 27
 #define ECHO_B 14
 
-// LEDs locales (allumées si place occupée)
-#define LED_A 32
-#define LED_B 33
+// LEDs locales (allumées si occupé)
+#define LED_A 13
+#define LED_B 4
 
-// Bus SPI partagé pour les 2 OLEDs (SBC-OLED01-V2 / SSD1306)
-#define OLED_SCK   18  // SCK / SCL
-#define OLED_MOSI  23  // MOSI / SDA
-#define OLED_RES   17  // RES / RST (partagé)
-#define OLED_DC    16  // DC (partagé)
-#define OLED_CS_L   5  // CS de l'OLED gauche
-#define OLED_CS_R   4  // CS de l'OLED droite
+// Bus I2C #0 → OLED gauche (adresse 0x3C)
+#define OLED_SDA_L 21
+#define OLED_SCL_L 22
+
+// Bus I2C #1 → OLED droite (adresse 0x3C aussi, mais sur un autre bus)
+#define OLED_SDA_R 33
+#define OLED_SCL_R 32
 
 // ============================================================
 // PARAMÈTRES MÉTIER
 // ============================================================
-const float DISTANCE_THRESHOLD_CM  = 20.0;   // < seuil = voiture présente
-const unsigned long LOOP_DELAY_MS  = 4500;   // intervalle global du loop
-const unsigned long PANEL_REFRESH_MS = 5000; // GET /api/spots minimum
+const float DISTANCE_THRESHOLD_CM    = 20.0;
+const unsigned long LOOP_DELAY_MS    = 4500;
+const unsigned long PANEL_REFRESH_MS = 5000;
 
-// NTP (heure affichée sur le panneau droit) — fuseau Paris (UTC+1, été UTC+2)
-const char* NTP_SERVER     = "pool.ntp.org";
-const long  GMT_OFFSET     = 3600;
-const int   DAYLIGHT_OFFSET = 3600;
+const char* NTP_SERVER       = "pool.ntp.org";
+const long  GMT_OFFSET       = 3600;
+const int   DAYLIGHT_OFFSET  = 3600;
 
 // ============================================================
 // OBJETS GLOBAUX
 // ============================================================
-Adafruit_SSD1306 oledLeft (128, 64, &SPI, OLED_DC, OLED_RES, OLED_CS_L);
-Adafruit_SSD1306 oledRight(128, 64, &SPI, OLED_DC, OLED_RES, OLED_CS_R);
+TwoWire I2C_R = TwoWire(1);  // bus I2C #1 (Wire1)
+
+Adafruit_SSD1306 oledLeft (128, 64, &Wire,  -1);
+Adafruit_SSD1306 oledRight(128, 64, &I2C_R, -1);
 
 bool spotsState[6] = {false, false, false, false, false, false};
 unsigned long lastPanelRefresh = 0;
@@ -89,12 +87,14 @@ void setup() {
     pinMode(LED_A, OUTPUT);  digitalWrite(LED_A, LOW);
     pinMode(LED_B, OUTPUT);  digitalWrite(LED_B, LOW);
 
-    SPI.begin(OLED_SCK, -1, OLED_MOSI, -1);
-    if (!oledLeft.begin(SSD1306_SWITCHCAPVCC)) {
-        Serial.println("[OLED-L] init KO");
+    Wire.begin(OLED_SDA_L, OLED_SCL_L);
+    I2C_R.begin(OLED_SDA_R, OLED_SCL_R);
+
+    if (!oledLeft.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+        Serial.println("[OLED-L] init KO (verifier SDA=21, SCL=22, alim 3.3V, adresse 0x3C)");
     }
-    if (!oledRight.begin(SSD1306_SWITCHCAPVCC)) {
-        Serial.println("[OLED-R] init KO");
+    if (!oledRight.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+        Serial.println("[OLED-R] init KO (verifier SDA=33, SCL=32, alim 3.3V, adresse 0x3C)");
     }
     showBootScreen();
 
@@ -102,9 +102,6 @@ void setup() {
     configTime(GMT_OFFSET, DAYLIGHT_OFFSET, NTP_SERVER);
 }
 
-// ============================================================
-// WIFI
-// ============================================================
 void connectWifi() {
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -121,23 +118,17 @@ void connectWifi() {
     }
 }
 
-// ============================================================
-// CAPTEURS
-// ============================================================
 float measureDistance(int trigPin, int echoPin) {
     digitalWrite(trigPin, LOW);
     delayMicroseconds(2);
     digitalWrite(trigPin, HIGH);
     delayMicroseconds(10);
     digitalWrite(trigPin, LOW);
-    long duration = pulseIn(echoPin, HIGH, 30000); // timeout 30 ms
+    long duration = pulseIn(echoPin, HIGH, 30000);
     if (duration == 0) return -1.0;
     return (duration * 0.034) / 2.0;
 }
 
-// ============================================================
-// API — POST état d'une place
-// ============================================================
 void postSpotStatus(int spotId, bool occupied, float distance) {
     if (WiFi.status() != WL_CONNECTED) connectWifi();
     if (WiFi.status() != WL_CONNECTED) return;
@@ -161,9 +152,6 @@ void postSpotStatus(int spotId, bool occupied, float distance) {
     http.end();
 }
 
-// ============================================================
-// API — GET état des 6 places (pour le panneau)
-// ============================================================
 bool fetchAllSpots() {
     if (WiFi.status() != WL_CONNECTED) connectWifi();
     if (WiFi.status() != WL_CONNECTED) return false;
@@ -194,9 +182,6 @@ bool fetchAllSpots() {
     return true;
 }
 
-// ============================================================
-// AFFICHAGE — boot
-// ============================================================
 void showBootScreen() {
     oledLeft.clearDisplay();
     oledLeft.setTextColor(SSD1306_WHITE);
@@ -213,9 +198,6 @@ void showBootScreen() {
     oledRight.display();
 }
 
-// ============================================================
-// AFFICHAGE — panneau gauche : grille des 6 places
-// ============================================================
 void renderLeftPanel() {
     oledLeft.clearDisplay();
     oledLeft.setTextColor(SSD1306_WHITE);
@@ -224,7 +206,7 @@ void renderLeftPanel() {
     oledLeft.print("PARKING - 6 places");
     oledLeft.drawLine(0, 10, 128, 10, SSD1306_WHITE);
 
-    const int cols = 3, rows = 2;
+    const int cols = 3;
     const int cellW = 42, cellH = 25;
     const int startX = 1, startY = 13;
 
@@ -249,9 +231,6 @@ void renderLeftPanel() {
     oledLeft.display();
 }
 
-// ============================================================
-// AFFICHAGE — panneau droit : compteur + heure
-// ============================================================
 void renderRightPanel() {
     int free = 0;
     for (int i = 0; i < 6; i++) if (!spotsState[i]) free++;
@@ -280,26 +259,20 @@ void renderRightPanel() {
     oledRight.display();
 }
 
-// ============================================================
-// LOOP
-// ============================================================
 void loop() {
-    // ---- Place A
     float dA = measureDistance(TRIG_A, ECHO_A);
     bool occA = (dA > 0 && dA < DISTANCE_THRESHOLD_CM);
     digitalWrite(LED_A, occA ? HIGH : LOW);
     postSpotStatus(SPOT_ID_A, occA, dA);
-    spotsState[SPOT_ID_A - 1] = occA; // optimisme local
+    spotsState[SPOT_ID_A - 1] = occA;
     delay(300);
 
-    // ---- Place B
     float dB = measureDistance(TRIG_B, ECHO_B);
     bool occB = (dB > 0 && dB < DISTANCE_THRESHOLD_CM);
     digitalWrite(LED_B, occB ? HIGH : LOW);
     postSpotStatus(SPOT_ID_B, occB, dB);
     spotsState[SPOT_ID_B - 1] = occB;
 
-    // ---- Panneau global
     if (millis() - lastPanelRefresh >= PANEL_REFRESH_MS) {
         fetchAllSpots();
         renderLeftPanel();
