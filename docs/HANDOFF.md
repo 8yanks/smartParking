@@ -1,115 +1,181 @@
-# Handoff — État du projet au 2026-05-14
+# Migration vers le PC portable — Guide pas à pas
 
-Document de transition pour la prochaine session Claude (côté PC portable de l'utilisateur).
+Tu es **sur le PC portable** (celui qui fait hotspot WiFi + sert Next.js + héberge la base SQLite). Suis ce guide dans l'ordre. Compter **~45 min** pour avoir le premier ESP32 qui POST sur le serveur.
 
-## Lis d'abord
+> Tout est déjà codé côté serveur et côté ESP32 — il n'y a que de la **config** à faire.
 
-1. [`README.md`](../README.md) — setup local + architecture
-2. [`docs/superpowers/specs/2026-04-14-parking-intelligent-design.md`](superpowers/specs/2026-04-14-parking-intelligent-design.md) — design complet (mis à jour avec les vrais composants matériels)
-3. [`esp32/README.md`](../esp32/README.md) — câblage GPIO de chaque nœud
+---
 
-## Décisions de stack déjà prises (ne pas re-questionner)
+## Phase 0 — Prérequis logiciels (10 min)
 
-- **Pivot Symfony → Next.js validé par l'utilisateur.** Symfony archivé sur la branche `archive/symfony`.
-- **Stack** : Next.js 16 (App Router, TypeScript) + Prisma 7 + adapter `better-sqlite3` + Tailwind 4.
-- **Exécution 100 % locale** : le PC portable de l'utilisateur fait hotspot WiFi, les ESP32 s'y connectent.
-- **HTTP, pas HTTPS** (local).
+À installer **une fois** sur le portable, dans cet ordre :
 
-## État des phases
+| Outil | Pourquoi | Où |
+|-------|----------|-----|
+| **Node.js 20+** | Pour faire tourner Next.js + Prisma | <https://nodejs.org> (installer LTS) |
+| **Git** | Pour cloner le repo | <https://git-scm.com> (ou déjà installé) |
+| **Arduino IDE 2.x** | Pour flasher les ESP32 | <https://www.arduino.cc/en/software> |
+| **Drivers USB-Serial** | Pour que Windows voie l'ESP32 | **CP210x** : <https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers> · **CH340** : <https://sparks.gogo.co.nz/ch340.html> (selon la puce de ta board — branche un ESP32 et regarde le gestionnaire de périphériques) |
 
-| Phase | État | Fait sur PC fixe |
-|-------|------|------------------|
-| 0. Prérequis (Node, Arduino IDE) | ✅ Node OK / Arduino à installer côté user | partiel |
-| 1. Backend Next.js + API | ✅ **Tests curl OK (POST 401/200, GET 200)** | sur PC fixe (transféré via git) |
-| 2. Hotspot Windows + firewall | ❌ À faire **sur le portable** (PC fixe sans WiFi) | — |
-| 3. Test smoke 1 ESP32 | ❌ À faire | — |
-| 4. Montage des 3 nœuds | ❌ À faire | — |
-| 5. Dashboard temps réel | ❌ À faire | — |
-| 6. Auth + réservations + Stripe (optionnel) | ❌ À faire | — |
-
-## Matériel (rappel — tout est dans esp32/README.md)
-
-- 3× ESP32 NodeMCU
-- 6× capteur HC-SR04A (un par place)
-- 6× LED rouge + R 220Ω (1 par place, allumée si occupée)
-- **2× OLED SBC-OLED01-V2 (SSD1306) en SPI**, montés ensemble sur le **nœud #1** = panneau d'info à l'entrée
-- 1× LED rouge spare
-- Breadboards + jumpers + câbles micro-USB OK côté utilisateur
-
-## Pièges techniques découverts (Next.js 16 / Prisma 7)
-
-1. **Next.js 16** : dans les route handlers dynamiques, `params` est un `Promise<...>` — toujours `await`.
-   ```ts
-   export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-     const { id } = await params;
-   }
-   ```
-
-2. **Prisma 7** : impossible de faire `new PrismaClient()` sans options. Il FAUT un adapter explicite. Pour SQLite :
-   ```ts
-   import { PrismaClient } from '@/generated/prisma/client';
-   import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
-   const adapter = new PrismaBetterSqlite3({ url: process.env.DATABASE_URL });
-   const prisma = new PrismaClient({ adapter });
-   ```
-
-3. **Prisma 7 client généré dans `src/generated/prisma`** (gitignored). Il faut `npx prisma generate` après chaque clone.
-
-4. **Le `.env` n'est pas commité** — l'utilisateur doit copier `.env.example` et générer une clé API. Les sketches Arduino doivent utiliser **la même clé**.
-
-5. **Le seed nécessite `dotenv`** car il s'exécute hors du contexte Next.js. Déjà géré dans `prisma/seed.ts`.
-
-## Ce que la prochaine session doit faire
-
-### Étape A — Vérifier le setup local (5 min)
-
-```bash
-npm install
-cp .env.example .env
-node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"  # → coller dans .env
-npx prisma migrate deploy
-npx prisma generate
-npm run db:seed
-npm run dev
-# Tester GET http://localhost:3000/api/spots → doit retourner 6 places
+Vérifications rapides en PowerShell :
+```powershell
+node --version    # v20.x ou +
+npm --version
+git --version
 ```
 
-### Étape B — Phase 2 : Hotspot + firewall
+### Dans l'Arduino IDE
 
-Sur le PC portable Windows, avec WiFi actif :
-1. Activer Mobile hotspot via `Settings → Network → Mobile hotspot` (band 2.4 GHz **obligatoire**).
-2. Récupérer l'IP du PC sur le hotspot :
-   ```powershell
-   Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -like "*Local Area*" }
+1. **File → Preferences → Additional boards manager URLs** : ajouter
    ```
-   (typiquement `192.168.137.1`)
-3. Ouvrir le port 3000 dans le firewall (PowerShell admin) :
-   ```powershell
-   New-NetFirewallRule -DisplayName "Next.js dev (3000)" -Direction Inbound -LocalPort 3000 -Protocol TCP -Action Allow
+   https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
    ```
-4. Lancer Next.js en écoute sur toutes les interfaces :
-   ```bash
+2. **Tools → Board → Boards Manager** → chercher `esp32` → installer **esp32 by Espressif Systems**.
+3. **Tools → Manage Libraries** → installer :
+   - `ArduinoJson` (Benoit Blanchon)
+   - `Adafruit GFX Library`
+   - `Adafruit SSD1306`
+
+---
+
+## Phase 1 — Récupérer le repo (5 min)
+
+```powershell
+cd $env:USERPROFILE\Desktop
+git clone https://github.com/8yanks/smartParking.git
+cd smartParking
+npm install
+```
+
+`npm install` prend ~2 min (Next.js + Prisma + better-sqlite3 compile une native binding).
+
+---
+
+## Phase 2 — Configurer le `.env` (3 min)
+
+Le `.env` n'est **pas** dans le repo (gitignored à cause de la clé API). Tu as deux options :
+
+### Option A — Reprendre la clé du PC fixe (recommandé)
+Copie le `.env` du PC fixe vers le portable (clé USB, mail à toi-même, etc.). La clé reste la même → **pas besoin de reflasher les sketches** si tu les as déjà compilés.
+
+### Option B — Générer une nouvelle clé
+```powershell
+Copy-Item .env.example .env
+$key = node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+(Get-Content .env) -replace 'ESP32_API_KEY=.*', "ESP32_API_KEY=`"$key`"" | Set-Content .env
+Write-Output "Clé générée : $key"
+```
+
+⚠️ Note bien la clé — il faut la coller dans les 3 sketches ESP32 (variable `API_KEY` en haut de chaque `.ino`).
+
+---
+
+## Phase 3 — Initialiser la base SQLite (2 min)
+
+```powershell
+npx prisma migrate deploy   # applique la migration init
+npx prisma generate         # génère le client Prisma dans src/generated/prisma
+npm run db:seed             # crée les 6 places A1-A6
+```
+
+Vérification :
+```powershell
+npm run dev
+# Dans un autre terminal :
+curl http://localhost:3000/api/spots
+```
+Tu dois voir un JSON avec 6 places. Stoppe avec `Ctrl+C`.
+
+---
+
+## Phase 4 — Hotspot WiFi + firewall (5 min)
+
+1. **Activer le hotspot** : Paramètres Windows → Réseau et Internet → Mobile hotspot.
+   - Bande : **2.4 GHz obligatoire** (les ESP32 ne voient pas le 5 GHz).
+   - Note bien le **SSID** et le **mot de passe** affichés.
+
+2. **Vérifier l'IP du portable** sur le hotspot (PowerShell) :
+   ```powershell
+   Get-NetIPAddress -AddressFamily IPv4 |
+     Where-Object { $_.InterfaceAlias -match 'Local Area Connection' -or $_.InterfaceAlias -match 'Connexion' } |
+     Select-Object IPAddress, InterfaceAlias
+   ```
+   Typiquement **`192.168.137.1`**. Si différent, note l'IP — il faudra l'utiliser dans les sketches.
+
+3. **Ouvrir le port 3000 dans le firewall** (PowerShell **admin**, une fois pour toutes) :
+   ```powershell
+   New-NetFirewallRule -DisplayName "Next.js parking" -Direction Inbound -LocalPort 3000 -Protocol TCP -Action Allow -Profile Any
+   ```
+
+4. **Lancer le serveur en écoute sur toutes les interfaces** :
+   ```powershell
    npm run dev -- -H 0.0.0.0
    ```
-5. Depuis un autre device sur le hotspot, tester `http://192.168.137.1:3000/api/spots`.
+   Garde ce terminal ouvert pendant toute la phase ESP32.
 
-### Étape C — Adapter les 2 sketches Arduino
+---
 
-Dans `esp32/node-1.ino` ET `esp32/node-sensor.ino`, remplacer :
+## Phase 5 — Configurer et flasher les ESP32 (15 min)
+
+Tous les détails de câblage sont dans [`esp32/WIRING.md`](../esp32/WIRING.md) — suis les **8 étapes** (Hello World → panneau complet).
+
+Avant le flash, édite dans chaque sketch ces 4 constantes :
+
 ```cpp
-const char* WIFI_SSID     = "YKS_0221";          // SSID du hotspot user
-const char* WIFI_PASSWORD = "smartParking";       // password user
-const char* SERVER_URL    = "http://192.168.137.1:3000";  // IP du PC + port (PAS de https !)
-const char* API_KEY       = "<la clé du .env>";
+const char* WIFI_SSID     = "<SSID de ton hotspot>";        // ex: YKS_0221
+const char* WIFI_PASSWORD = "<mot de passe du hotspot>";
+const char* SERVER_URL    = "http://192.168.137.1:3000";    // adapter si IP différente
+const char* API_KEY       = "<la valeur de ESP32_API_KEY du .env>";
 ```
 
-### Étape D et suite
+Pour `node-sensor.ino`, choisir aussi le bon bloc selon le nœud :
+- ESP32 #2 → `NODE_ID = "node-2"`, `SPOT_ID_A = 3`, `SPOT_ID_B = 4`
+- ESP32 #3 → `NODE_ID = "node-3"`, `SPOT_ID_A = 5`, `SPOT_ID_B = 6`
 
-Phases 3–6 selon le plan dans [`docs/superpowers/plans/2026-04-14-parking-intelligent.md`](superpowers/plans/2026-04-14-parking-intelligent.md) (mais ce plan est encore en français Symfony — à réécrire en Next.js si tu veux le garder à jour).
+**Test smoke** : avec **un seul** ESP32 branché USB + un seul capteur sur GPIO 25/26 + une LED sur GPIO 32 (pinout dans WIRING.md), flashe et ouvre le moniteur série 115200 baud. Tu dois voir :
+```
+[node-2] Boot capteur
+[WiFi] OK 192.168.137.X
+[POST] place 3 LIBRE (47.3 cm) HTTP 200
+```
 
-## Contexte utilisateur
+`HTTP 200` = ✅ tout fonctionne bout-à-bout.
 
-- Étudiant, équipe 154 du projet "Parking Intelligent" (membres : Yanis Michaux, Théo Perret, Adam Bruneau, James Malespine).
-- Niveau ESP32 : "quelques bases".
-- Préférences : décisions cadrées (utilise `AskUserQuestion` pour les choix importants), réponses concises, pas de pavé.
-- Session précédente : tout le bootstrap a été fait sur PC fixe, transféré via Git.
+---
+
+## Phase 6 — Suite (optionnelle pour l'instant)
+
+Une fois les 3 nœuds en place et le dashboard à venir : voir [`docs/superpowers/plans/2026-04-14-parking-intelligent.md`](superpowers/plans/2026-04-14-parking-intelligent.md) (ce plan est encore tourné Symfony, à réécrire en Next.js si tu veux le poursuivre).
+
+---
+
+## Récap fichiers utiles
+
+| Fichier | Quand le lire |
+|---------|---------------|
+| `README.md` (racine) | Vue d'ensemble du projet |
+| `docs/HANDOFF.md` (ce fichier) | Migration sur portable |
+| `esp32/WIRING.md` | Câblage pas à pas — 8 étapes guidées |
+| `esp32/README.md` | Récap pinout + API attendue |
+| `prisma/schema.prisma` | Modèle BDD (ParkingSpot, SensorData) |
+| `src/app/api/spot/[id]/route.ts` | Endpoint POST que les ESP32 appellent |
+| `src/app/api/spots/route.ts` | Endpoint GET pour le dashboard + nœud #1 |
+
+---
+
+## Pièges connus
+
+- **`HTTP -1` côté ESP32** = pas de connexion au serveur. Vérifier : SSID/password, hotspot bien 2.4 GHz, firewall ouvert, serveur lancé avec `-H 0.0.0.0`.
+- **`HTTP 401`** = clé API mauvaise. Vérifier que `API_KEY` du sketch == `ESP32_API_KEY` du `.env`.
+- **OLED `init KO`** = mauvais bus I2C ou alim (3.3V obligatoire, pas 5V).
+- **Capteur HC-SR04A renvoie -1** = pas en 5V ou TRIG/ECHO inversés.
+- **Upload Arduino échoue "Failed to connect"** = maintiens le bouton **BOOT** de l'ESP32 pendant l'upload.
+- **Next.js 16 + Prisma 7** : si tu touches au code, `params` est un `Promise<...>` à `await`, et `PrismaClient` exige un adapter (déjà gérés dans le code actuel).
+
+---
+
+## Contexte rapide
+
+- Projet scolaire "Parking Intelligent" — équipe 154 (Yanis Michaux, Théo Perret, Adam Bruneau, James Malespine).
+- Stack figée : Next.js 16 + Prisma 7 + SQLite + Tailwind 4. Symfony archivé sur la branche `archive/symfony`.
+- Exécution 100% locale via hotspot Windows — pas de déploiement cloud prévu.
