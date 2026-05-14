@@ -2,6 +2,8 @@
 
 Code Arduino pour les 3 nœuds ESP32 du parking 6 places.
 
+> 🛠️ **Tu montes les composants pour la première fois ?** Suis le [**guide de montage pas à pas**](WIRING.md) plutôt que ce README — il commence par "Hello World" et te fait tester chaque composant individuellement avant d'assembler.
+
 ## Architecture matérielle
 
 | Nœud | Rôle | Capteurs | LEDs | OLEDs | Sketch |
