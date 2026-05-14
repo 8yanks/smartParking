@@ -20,22 +20,22 @@
 // ============================================================
 // CONFIGURATION — À MODIFIER avant flash
 // ============================================================
-const char* WIFI_SSID     = "NOM_DE_VOTRE_WIFI";
-const char* WIFI_PASSWORD = "MOT_DE_PASSE_WIFI";
+const char* WIFI_SSID     = "YKS_0221";
+const char* WIFI_PASSWORD = "smartParking";
 const char* SERVER_URL    = "http://192.168.137.1:3000"; // IP du PC sur le hotspot, sans slash final
-const char* API_KEY       = "une_cle_secrete_longue_changez_moi";
+const char* API_KEY       = "d62793cc0e30009e4bfe4d81448741264ffd95005bacfd86235944184ab2a0fe";
 
 // >>> Spécifique à chaque nœud — décommenter le bon bloc <<<
 
 // --- Nœud #2 ---
-const char* NODE_ID  = "node-2";
-const int SPOT_ID_A  = 3;
-const int SPOT_ID_B  = 4;
+// const char* NODE_ID  = "node-2";
+// const int SPOT_ID_A  = 3;
+// const int SPOT_ID_B  = 4;
 
 // --- Nœud #3 ---
-// const char* NODE_ID  = "node-3";
-// const int SPOT_ID_A  = 5;
-// const int SPOT_ID_B  = 6;
+const char* NODE_ID  = "node-3";
+const int SPOT_ID_A  = 5;
+const int SPOT_ID_B  = 6;
 
 // ============================================================
 // CÂBLAGE GPIO — identique sur tous les nœuds capteurs

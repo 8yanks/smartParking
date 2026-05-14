@@ -22,10 +22,10 @@
 // ============================================================
 // CONFIGURATION — À MODIFIER avant flash
 // ============================================================
-const char* WIFI_SSID     = "NOM_DE_VOTRE_WIFI";
-const char* WIFI_PASSWORD = "MOT_DE_PASSE_WIFI";
+const char* WIFI_SSID     = "YKS_0221";
+const char* WIFI_PASSWORD = "smartParking";
 const char* SERVER_URL    = "http://192.168.137.1:3000"; // IP du PC sur le hotspot, sans slash final
-const char* API_KEY       = "une_cle_secrete_longue_changez_moi";
+const char* API_KEY       = "d62793cc0e30009e4bfe4d81448741264ffd95005bacfd86235944184ab2a0fe";
 const char* NODE_ID       = "node-1";
 
 const int SPOT_ID_A = 1;

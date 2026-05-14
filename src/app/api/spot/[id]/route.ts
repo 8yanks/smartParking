@@ -50,5 +50,27 @@ export async function POST(
     }),
   ]);
 
+  // Détection dépassement : place occupée + réservation au-delà de endTime.
+  // Amende = 5€ base + 0,50€ par minute de dépassement (recalculée à chaque mesure).
+  if (body.occupied) {
+    const now = new Date();
+    const expired = await prisma.reservation.findFirst({
+      where: {
+        spotId,
+        status: { in: ['ACTIVE', 'EXPIRED'] },
+        endTime: { lt: now },
+      },
+      orderBy: { endTime: 'desc' },
+    });
+    if (expired) {
+      const minutesOver = (now.getTime() - expired.endTime.getTime()) / 60_000;
+      const fineAmount = Math.round((5 + minutesOver * 0.5) * 100) / 100;
+      await prisma.reservation.update({
+        where: { id: expired.id },
+        data: { status: 'EXPIRED', fineAmount },
+      });
+    }
+  }
+
   return Response.json({ ok: true, spot: { id: spot.id, isOccupied: spot.isOccupied } });
 }
