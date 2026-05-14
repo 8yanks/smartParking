@@ -1,0 +1,116 @@
+═══════════════════════════════════════════════════════════════
+  PARKING INTELLIGENT — Setup sur une nouvelle machine
+  Équipe 154 — Yanis, Théo, Adam, James
+═══════════════════════════════════════════════════════════════
+
+PRÉREQUIS LOGICIELS
+-------------------
+- Node.js 20+      → https://nodejs.org (LTS)
+- Git              → https://git-scm.com
+- Arduino IDE 2.x  → https://www.arduino.cc/en/software (uniquement si tu reflashes les ESP32)
+
+
+1. CLONER LE REPO
+-----------------
+    git clone https://github.com/8yanks/smartParking.git
+    cd smartParking
+    npm install
+
+
+2. CRÉER LE FICHIER .env (PAS dans le repo, à recréer à chaque clone)
+---------------------------------------------------------------------
+Créer un fichier ".env" à la racine du projet avec exactement ce contenu :
+
+    ESP32_API_KEY="d62793cc0e30009e4bfe4d81448741264ffd95005bacfd86235944184ab2a0fe"
+    DATABASE_URL="file:./prisma/parking.db"
+
+
+3. INITIALISER LA BASE DE DONNÉES
+---------------------------------
+    npx prisma migrate deploy
+    npx prisma generate
+    npm run db:seed
+
+→ Crée la base SQLite avec les 6 places (A1 à A6) vides.
+
+
+4. DÉMARRER LE SERVEUR
+----------------------
+    npm run build
+    npm run start -- -H 0.0.0.0
+
+→ Serveur dispo sur http://localhost:3000
+→ /        : interface ATM publique (réservations)
+→ /admin   : panneau de tests (résas en secondes, toggle occupation, reset DB)
+
+
+5. HOTSPOT WINDOWS (si tu veux faire dialoguer les ESP32)
+---------------------------------------------------------
+- Activer le Mobile hotspot Windows en 2.4 GHz (les ESP32 ne voient pas le 5 GHz)
+- SSID actuel des sketches : YKS_0221 / smartParking
+  (pour changer : éditer les .ino dans esp32/node-1/ et esp32/node-sensor/)
+- Ouvrir le port 3000 du firewall (PowerShell admin, 1× pour toutes) :
+
+    New-NetFirewallRule -DisplayName "Next.js parking" -Direction Inbound `
+        -LocalPort 3000 -Protocol TCP -Action Allow -Profile Any
+
+
+6. REFLASHER LES ESP32 (si besoin)
+----------------------------------
+Sketches dans :
+    esp32/node-1/node-1.ino           → ESP32 #1 "panneau" (places 1-2 + 2 OLEDs)
+    esp32/node-sensor/node-sensor.ino → ESP32 #2 et #3 (commenter/décommenter le bon bloc)
+
+Avant flash, vérifier les 4 constantes en haut du fichier :
+    WIFI_SSID, WIFI_PASSWORD, SERVER_URL, API_KEY
+
+Arduino IDE :
+- Tools → Board → ESP32 Arduino → ESP32 Dev Module
+- Tools → Port → choisir le COM de l'ESP32
+- Librairies Library Manager : ArduinoJson, Adafruit GFX, Adafruit SSD1306
+- Si "Failed to connect" pendant l'upload → maintenir le bouton BOOT
+
+Câblage complet : voir esp32/WIRING.md (8 étapes)
+
+
+CODES HTTP CÔTÉ ESP32 (moniteur série 115200 baud)
+--------------------------------------------------
+    HTTP 200  → tout OK, le serveur a enregistré la mesure
+    HTTP -1   → serveur injoignable (vérifier hotspot, firewall, npm run start)
+    HTTP 401  → clé API désynchronisée (sketch ≠ .env)
+
+
+À NOTER
+-------
+- Le fichier .env n'est PAS dans le repo (gitignored) → à recréer à chaque clone
+- Le fichier prisma/parking.db n'est PAS dans le repo → recréé par "npm run db:seed"
+- La vraie API_KEY est en clair dans les sketches .ino (acceptable pour un projet
+  scolaire en hotspot local). Si tu veux la rotater :
+    1. Générer une nouvelle clé
+    2. Mettre à jour le .env du serveur
+    3. Mettre à jour les 3 sketches
+    4. Reflasher les 3 ESP32
+
+
+PIÈGES CONNUS
+-------------
+- "Already in sync" puis "Property 'reservation' does not exist on PrismaClient"
+  → relancer "npx prisma generate" pour régénérer le client TypeScript
+- Capteur HC-SR04 renvoie -1.0 cm → câblage TRIG/ECHO ou alim 5V à vérifier
+- HTTP -1 intermittent → signal WiFi faible (rapprocher l'ESP32 du PC serveur)
+- OLED init KO → bus I2C ou alim 3.3V (pas 5V !) à vérifier
+
+
+FICHIERS UTILES
+---------------
+    README.md                            → Vue d'ensemble du projet
+    docs/HANDOFF.md                      → Guide de migration détaillé (plus complet)
+    esp32/WIRING.md                      → Câblage pas à pas
+    esp32/README.md                      → Pinout + API attendue
+    prisma/schema.prisma                 → Modèle BDD
+    src/app/api/spot/[id]/route.ts       → Endpoint POST des ESP32 (auth API key)
+    src/app/api/spots/route.ts           → GET places (utilisé par dashboard + nœud #1)
+    src/app/api/reservations/route.ts    → POST réservations publiques
+    src/app/api/admin/*                  → Endpoints panneau admin
+    src/app/page.tsx                     → Interface ATM principale
+    src/app/admin/page.tsx               → Panneau admin de tests
