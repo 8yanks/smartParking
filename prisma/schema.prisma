@@ -1,0 +1,32 @@
+// Schema Prisma — Parking Intelligent (Phase 1 minimum vital)
+// Modèles auth/réservations/paiement viendront en Phase 6.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model ParkingSpot {
+  id            Int          @id // 1-6, fixé manuellement par le seed
+  name          String       // "Place A1", "Place A2", ...
+  isOccupied    Boolean      @default(false)
+  lastUpdatedAt DateTime     @default(now()) @updatedAt
+  isActive      Boolean      @default(true)
+  sensorData    SensorData[]
+}
+
+model SensorData {
+  id         Int         @id @default(autoincrement())
+  spotId     Int
+  spot       ParkingSpot @relation(fields: [spotId], references: [id])
+  isOccupied Boolean
+  distanceCm Float
+  esp32Id    String
+  recordedAt DateTime    @default(now())
+
+  @@index([spotId, recordedAt])
+}
