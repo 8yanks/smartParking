@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "Symfony Dev Server",
-      "runtimeExecutable": "symfony",
-      "runtimeArgs": ["server:start", "--no-tls"],
-      "port": 8000
+      "name": "Next.js Dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000
     }
   ]
 }

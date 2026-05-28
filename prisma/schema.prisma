@@ -14,10 +14,19 @@ model ParkingSpot {
   id            Int           @id
   name          String
   isOccupied    Boolean       @default(false)
+  isHandicap    Boolean       @default(false)
   lastUpdatedAt DateTime      @default(now()) @updatedAt
   isActive      Boolean       @default(true)
   sensorData    SensorData[]
   reservations  Reservation[]
+}
+
+// État global de la barrière d'entrée (servomoteur sur node-1).
+// Un seul enregistrement (id = 1) — pattern singleton.
+model Barrier {
+  id        Int      @id @default(1)
+  isOpen    Boolean  @default(false)
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 model Reservation {

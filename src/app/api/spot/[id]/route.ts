@@ -19,7 +19,7 @@ export async function POST(
 
   const { id } = await params;
   const spotId = Number(id);
-  if (!Number.isInteger(spotId) || spotId < 1 || spotId > 6) {
+  if (!Number.isInteger(spotId) || spotId < 1 || spotId > 5) {
     return Response.json({ error: 'Invalid spot id' }, { status: 400 });
   }
 

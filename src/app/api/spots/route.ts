@@ -18,6 +18,7 @@ export async function GET() {
     id: s.id,
     name: s.name,
     is_occupied: s.isOccupied,
+    is_handicap: s.isHandicap,
     last_updated_at: s.lastUpdatedAt.toISOString(),
     is_active: s.isActive,
     activeReservation: s.reservations[0] ?? null,

@@ -2,13 +2,14 @@
  * Parking Intelligent — Sketch nœud capteur (réutilisé pour #2 et #3)
  *
  * Rôle :
- *  - Mesure 2 places via HC-SR04A
+ *  - Mesure 1 ou 2 places via HC-SR04A
  *  - Allume les LEDs locales si occupées
  *  - POST l'état vers /api/spot/{id}
  *
- * Pour flasher un nœud précis, modifiez la section CONFIGURATION ci-dessous :
- *   - NODE_ID : "node-2" ou "node-3"
- *   - SPOT_ID_A / SPOT_ID_B : (3,4) pour node-2 ; (5,6) pour node-3
+ * Pour flasher un nœud précis, modifier la section CONFIGURATION ci-dessous :
+ *   - NODE_ID   : "node-2" (2 capteurs) ou "node-3" (1 seul capteur, place handicap)
+ *   - SPOT_ID_A : id de la place côté capteur A
+ *   - SPOT_ID_B : id de la place côté capteur B, ou **-1** pour désactiver B
  *
  * Dépendances Arduino : WiFi, HTTPClient, ArduinoJson
  */
@@ -27,19 +28,22 @@ const char* API_KEY       = "d62793cc0e30009e4bfe4d81448741264ffd95005bacfd86235
 
 // >>> Spécifique à chaque nœud — décommenter le bon bloc <<<
 
-// --- Nœud #2 ---
+// --- Nœud #2 : capteurs places 3 et 4 ---
 // const char* NODE_ID  = "node-2";
 // const int SPOT_ID_A  = 3;
 // const int SPOT_ID_B  = 4;
 
-// --- Nœud #3 ---
+// --- Nœud #3 : 1 SEUL capteur (place 5, handicap) ---
+//   SPOT_ID_B = -1 → le code skip toute la logique du capteur B
+//   (pas de mesure, pas de LED, pas de POST).
 const char* NODE_ID  = "node-3";
 const int SPOT_ID_A  = 5;
-const int SPOT_ID_B  = 6;
+const int SPOT_ID_B  = -1;
 
 // ============================================================
 // CÂBLAGE GPIO — identique sur tous les nœuds capteurs
-// voir esp32/README.md pour le schéma de câblage
+// Capteur B / LED B ignorés si SPOT_ID_B == -1.
+// Voir esp32/WIRING.md pour le schéma complet.
 // ============================================================
 #define TRIG_A 25
 #define ECHO_A 26
@@ -55,18 +59,25 @@ const int SPOT_ID_B  = 6;
 const float DISTANCE_THRESHOLD_CM = 20.0;   // < seuil = voiture présente
 const unsigned long LOOP_DELAY_MS = 4500;   // intervalle global du loop
 
+// Petit helper : ce nœud gère-t-il un capteur B ?
+inline bool hasSensorB() { return SPOT_ID_B > 0; }
+
 // ============================================================
 // SETUP
 // ============================================================
 void setup() {
     Serial.begin(115200);
     delay(200);
-    Serial.printf("\n[%s] Boot capteur\n", NODE_ID);
+    Serial.printf("\n[%s] Boot capteur (%s)\n",
+                  NODE_ID, hasSensorB() ? "2 capteurs" : "1 capteur");
 
     pinMode(TRIG_A, OUTPUT); pinMode(ECHO_A, INPUT);
-    pinMode(TRIG_B, OUTPUT); pinMode(ECHO_B, INPUT);
     pinMode(LED_A, OUTPUT);  digitalWrite(LED_A, LOW);
-    pinMode(LED_B, OUTPUT);  digitalWrite(LED_B, LOW);
+
+    if (hasSensorB()) {
+        pinMode(TRIG_B, OUTPUT); pinMode(ECHO_B, INPUT);
+        pinMode(LED_B, OUTPUT);  digitalWrite(LED_B, LOW);
+    }
 
     connectWifi();
 }
@@ -134,18 +145,20 @@ void postSpotStatus(int spotId, bool occupied, float distance) {
 // LOOP
 // ============================================================
 void loop() {
-    // ---- Place A
+    // ---- Place A (toujours présente)
     float dA = measureDistance(TRIG_A, ECHO_A);
     bool occA = (dA > 0 && dA < DISTANCE_THRESHOLD_CM);
     digitalWrite(LED_A, occA ? HIGH : LOW);
     postSpotStatus(SPOT_ID_A, occA, dA);
-    delay(300);
 
-    // ---- Place B
-    float dB = measureDistance(TRIG_B, ECHO_B);
-    bool occB = (dB > 0 && dB < DISTANCE_THRESHOLD_CM);
-    digitalWrite(LED_B, occB ? HIGH : LOW);
-    postSpotStatus(SPOT_ID_B, occB, dB);
+    // ---- Place B (uniquement si SPOT_ID_B > 0)
+    if (hasSensorB()) {
+        delay(300);
+        float dB = measureDistance(TRIG_B, ECHO_B);
+        bool occB = (dB > 0 && dB < DISTANCE_THRESHOLD_CM);
+        digitalWrite(LED_B, occB ? HIGH : LOW);
+        postSpotStatus(SPOT_ID_B, occB, dB);
+    }
 
     delay(LOOP_DELAY_MS);
 }
