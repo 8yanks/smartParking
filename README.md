@@ -1,4 +1,4 @@
-# Smart Parking — Équipe 154
+# Smart Parking — Équipe 112
 
 Site web local pour gérer un parking intelligent de **6 places** équipées de capteurs ultrasons HC-SR04A pilotés par 3 ESP32 NodeMCU.
 
