@@ -1,6 +1,6 @@
 # Design — Site Web Parking Intelligent
 
-**Projet :** Parking Intelligent — Équipe 154  
+**Projet :** Parking Intelligent — Équipe 112  
 **Membres :** Michaux Yanis, Perret Théo, Bruneau Adam, Malespine James  
 **Date :** 2026-04-14  
 **Contexte :** Projet scolaire — semestre universitaire (~16-18 semaines)

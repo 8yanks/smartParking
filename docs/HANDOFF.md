@@ -181,6 +181,6 @@ Une fois les 3 nœuds en place et le dashboard à venir : voir [`docs/superpower
 
 ## Contexte rapide
 
-- Projet scolaire "Parking Intelligent" — équipe 154 (Yanis Michaux, Théo Perret, Adam Bruneau, James Malespine).
+- Projet scolaire "Parking Intelligent" — équipe 112 (Yanis Michaux, Théo Perret, Adam Bruneau, James Malespine).
 - Stack figée : Next.js 16 + Prisma 7 + SQLite + Tailwind 4. Symfony archivé sur la branche `archive/symfony`.
 - Exécution 100% locale via hotspot Windows — pas de déploiement cloud prévu.

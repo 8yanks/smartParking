@@ -1,6 +1,6 @@
 ═══════════════════════════════════════════════════════════════
   PARKING INTELLIGENT — Setup sur une nouvelle machine
-  Équipe 154 — Yanis, Théo, Adam, James
+  Équipe 112 — Yanis, Théo, Adam, James
 ═══════════════════════════════════════════════════════════════
 
 PRÉREQUIS LOGICIELS

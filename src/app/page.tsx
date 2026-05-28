@@ -195,7 +195,7 @@ export default function Home() {
               CONTINUER →
             </button>
           </div>
-          <p className="text-gray-700 text-xs text-center">Équipe 154</p>
+          <p className="text-gray-700 text-xs text-center">Équipe 112</p>
         </div>
       </div>
     );

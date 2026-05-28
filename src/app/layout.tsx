@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Parking Intelligent — Équipe 154",
+  title: "Parking Intelligent — Équipe 112",
   description: "Réservation et état temps réel des 5 places du parking intelligent (capteurs ESP32 + barrière).",
 };
 
