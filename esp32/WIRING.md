@@ -8,20 +8,31 @@
 
 - **Capteurs HC-SR04A → 5V** (rail VIN de l'ESP32, pas 3.3V)
 - **OLEDs SBC-OLED01-V2 → 3.3V** (3V3 de l'ESP32, jamais 5V — risque de griller)
+- **Servomoteur (SG90 / MG90S) → 5V** (sur VIN, jamais 3V3 — pas assez de courant)
 - **LEDs toujours avec leur résistance 220 Ω** en série
 - **Toujours débrancher l'USB** avant de modifier un câblage
+
+## Topologie (matériel actuel : 5 capteurs + 1 servo)
+
+| Nœud | Rôle | Capteurs | LEDs | OLEDs | Servo |
+|------|------|----------|------|-------|-------|
+| **#1 panneau / entrée** | Capteurs places 1-2 + panneau d'info + **barrière** | 2 (places 1, 2) | 2 | 2 (I2C) | **1 (barrière)** |
+| **#2** | Capteurs places 3-4 | 2 (places 3, 4) | 2 | — | — |
+| **#3** | Capteur **place handicap** (place 5, extrémité droite) | **1 (place 5 uniquement)** | 1 | — | — |
+
+> 📝 Le matériel ne comporte que 5 capteurs (avant : 6). La place 5 est marquée **handicap** côté serveur (badge ♿ sur le dashboard, anneau bleu autour de la case).
 
 ---
 
 ## Pinout de référence
 
-### Nœud panneau (#1) — 2 capteurs + 2 LEDs + 2 OLEDs I2C
+### Nœud panneau (#1) — 2 capteurs + 2 LEDs + 2 OLEDs I2C + **servo barrière**
 
 | GPIO | Fonction | Branché à |
 |------|----------|-----------|
-| 5V (VIN) | Alim capteurs | VCC des 2 HC-SR04A |
+| 5V (VIN) | Alim capteurs + **servo** | VCC des 2 HC-SR04A + fil rouge servo |
 | 3V3 | Alim OLEDs | VCC des 2 OLEDs |
-| GND | Masse commune | GND de tout |
+| GND | Masse commune | GND de tout (capteurs, LEDs, OLEDs, **servo fil marron/noir**) |
 | 25 | TRIG capteur A (place 1) | TRIG HC-SR04A #A |
 | 26 | ECHO capteur A | ECHO HC-SR04A #A |
 | 27 | TRIG capteur B (place 2) | TRIG HC-SR04A #B |
@@ -32,27 +43,40 @@
 | 22 | SCL bus I2C #0 | SCL OLED gauche |
 | 33 | SDA bus I2C #1 | SDA OLED droite |
 | 32 | SCL bus I2C #1 | SCL OLED droite |
+| **18** | **PWM servo barrière** | **fil jaune/orange du servo** |
 
 > 💡 Les 2 OLEDs ont la même adresse 0x3C par défaut → c'est pourquoi on utilise **2 bus I2C séparés** sur l'ESP32 (qui en a 2 hardware).
 
-### Nœuds capteurs (#2 et #3) — 2 capteurs + 2 LEDs
+> ⚠️ **Servo SG90 / MG90S** : 3 fils (rouge = VCC 5V, marron/noir = GND, jaune/orange = signal PWM). Le servo tire des pointes de 250-500 mA au démarrage. Si l'ESP32 reboot quand tu actives la barrière, alimente le servo via une source externe 5V (powerbank) ET relie son GND à celui de l'ESP32.
+
+### Nœud capteur #2 — 2 capteurs + 2 LEDs
 
 | GPIO | Fonction | Branché à |
 |------|----------|-----------|
 | 5V (VIN) | Alim capteurs | VCC des 2 HC-SR04A |
 | GND | Masse | GND de tout |
-| 25 | TRIG capteur A | TRIG HC-SR04A #A |
+| 25 | TRIG capteur A (place 3) | TRIG HC-SR04A #A |
 | 26 | ECHO capteur A | ECHO HC-SR04A #A |
-| 27 | TRIG capteur B | TRIG HC-SR04A #B |
+| 27 | TRIG capteur B (place 4) | TRIG HC-SR04A #B |
 | 14 | ECHO capteur B | ECHO HC-SR04A #B |
-| 32 | LED A | → 220Ω → anode LED |
-| 33 | LED B | → 220Ω → anode LED |
+| 32 | LED A (place 3) | → 220Ω → anode LED |
+| 33 | LED B (place 4) | → 220Ω → anode LED |
 
-(LEDs sur 32/33 ici car pas d'OLED à câbler.)
+### Nœud capteur #3 — **1 seul** capteur + 1 LED (place handicap)
+
+| GPIO | Fonction | Branché à |
+|------|----------|-----------|
+| 5V (VIN) | Alim capteur | VCC HC-SR04A |
+| GND | Masse | GND de tout |
+| 25 | TRIG capteur A (place 5) | TRIG HC-SR04A |
+| 26 | ECHO capteur A | ECHO HC-SR04A |
+| 32 | LED A (place 5) | → 220Ω → anode LED |
+
+(Pas de capteur B — c'est l'ancienne place 6, supprimée du matériel. Dans `node-sensor.ino` mettre `SPOT_ID_B = -1` pour désactiver la lecture/POST côté B.)
 
 ### Nœud panneau (#1) — pourquoi pas 32/33 pour les LEDs ?
 
-Sur le panneau, **32 et 33 sont occupés par le bus I2C #1** (OLED droite). Du coup les LEDs vont sur 13 (A) et 4 (B).
+Sur le panneau, **32 et 33 sont occupés par le bus I2C #1** (OLED droite). Du coup les LEDs vont sur 13 (A) et 4 (B). Le GPIO 18 est libre → c'est lui qui pilote le servo.
 
 ---
 
@@ -132,14 +156,14 @@ Au moniteur série :
 
 Ajoute le 2ème capteur + 2ème LED au breadboard, selon le pinout du tableau "Nœuds capteurs" plus haut. Re-flash, vérifie les 2 places remontent.
 
-### 6. Faire les 3 nœuds capteurs (30 min)
+### 6. Faire les nœuds capteurs #2 et #3 (30 min)
 
-| ESP32 | Sketch | NODE_ID | Places |
-|-------|--------|---------|--------|
-| #2 | `node-sensor.ino` | `node-2` | 3, 4 |
-| #3 | `node-sensor.ino` | `node-3` | 5, 6 |
+| ESP32 | Sketch | NODE_ID | Places | Note |
+|-------|--------|---------|--------|------|
+| #2 | `node-sensor.ino` | `node-2` | 3, 4 | 2 capteurs |
+| #3 | `node-sensor.ino` | `node-3` | **5 uniquement** | 1 seul capteur — laisser `SPOT_ID_B = -1` |
 
-À la fin : 4 places (3-6) remontent au serveur. Place 1-2 attendent l'étape 7.
+À la fin : 3 places (3-5) remontent au serveur. Places 1-2 attendent l'étape 7.
 
 ### 7. Câblage du nœud panneau #1 avec 2 OLEDs I2C (45 min)
 
@@ -168,8 +192,38 @@ Flash `esp32/node-1.ino` (mêmes WIFI/SERVER_URL/API_KEY que les autres). Au mon
 ```
 
 Affichage attendu :
-- OLED gauche : "PARKING" puis (~5s) la grille des 6 cases LIB / OCC
-- OLED droite : "BOOT..." puis "X/6 LIBRES" + heure NTP
+- OLED gauche : "PARKING" puis (~5s) la grille des **5 cases** LIB / OCC
+- OLED droite : "BOOT..." puis "X/5 LIBRES" + heure NTP
+
+### 7bis. Câblage et test du servomoteur barrière (15 min)
+
+**Câblage** (3 fils du servo SG90/MG90S vers l'ESP32 #1) :
+
+```
+Servo SG90              ESP32 NodeMCU
+──────────              ─────────────
+Fil rouge       ───►   VIN (5V)
+Fil marron/noir ───►   GND
+Fil jaune/orange ──►   GPIO 18
+```
+
+**Test isolé** (sans serveur, juste pour vérifier que le servo tourne) — sketch minimal :
+
+```cpp
+#include <ESP32Servo.h>
+Servo barrier;
+void setup() { barrier.attach(18); }
+void loop() {
+  barrier.write(0);   delay(2000);   // barrière fermée
+  barrier.write(90);  delay(2000);   // barrière ouverte
+}
+```
+
+Lib à installer : **ESP32Servo** par Kevin Harrington (gestionnaire de bibliothèques).
+
+**Test intégré** : flash `node-1.ino` normalement. Au boot, le servo va à 0° (fermé). Ensuite, depuis le dashboard → bouton **OUVRIR** → tu devrais voir le servo bouger sous 2-3 secondes (le node-1 poll `/api/barrier` toutes les 2s).
+
+> ⚠️ Si l'ESP32 reboote dès que tu actives le servo, c'est un problème de courant. Solution : alimenter le servo via une source 5V externe (powerbank, alim murale 5V) — connecte juste son **fil rouge à la source externe** et **garde son GND relié à celui de l'ESP32** (masse commune obligatoire pour que le signal PWM soit interprété).
 
 ### 8. Mise en place finale
 
@@ -206,3 +260,12 @@ Position physique :
 ### Une seule des 2 OLEDs marche
 - Vérifie le 2ème bus (GPIO 33/32 pour la droite).
 - Les fils SDA/SCL sont bien dédiés au bon OLED, pas crossés ?
+
+### Le servo ne bouge pas
+- Vérifie la lib **ESP32Servo** installée (pas la Servo de base).
+- Mesure ~5V sur le fil rouge du servo (pas 3.3V).
+- Le **GND du servo** doit être **commun avec celui de l'ESP32** sinon le signal PWM est flottant.
+- Côté serveur : `curl http://localhost:3000/api/barrier` doit renvoyer `{"is_open":true|false,...}`. Si OK et le servo ne bouge pas, c'est un souci câblage/alim.
+
+### L'ESP32 reboote dès que la barrière s'ouvre
+- Pointe de courant trop forte pour le régulateur de la board. Alimente le servo via une source 5V externe (powerbank, alim USB), en gardant GND commun.

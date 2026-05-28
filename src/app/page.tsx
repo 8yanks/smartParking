@@ -19,7 +19,13 @@ type Spot = {
   name: string;
   is_occupied: boolean;
   is_active: boolean;
+  is_handicap: boolean;
   activeReservation: Reservation | null;
+};
+
+type BarrierState = {
+  is_open: boolean;
+  updated_at: string;
 };
 
 type SpotStatus = "LIBRE" | "RESERVE" | "EN_COURS" | "OCCUPE" | "DEPASSE";
@@ -72,6 +78,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [confirmed, setConfirmed] = useState<(Reservation & { spotName: string }) | null>(null);
+  const [barrier, setBarrier] = useState<BarrierState | null>(null);
+  const [barrierBusy, setBarrierBusy] = useState(false);
 
   const fetchSpots = useCallback(async () => {
     try {
@@ -80,12 +88,36 @@ export default function Home() {
     } catch { /* ignore network errors */ }
   }, []);
 
+  const fetchBarrier = useCallback(async () => {
+    try {
+      const r = await fetch("/api/barrier");
+      if (r.ok) setBarrier(await r.json());
+    } catch { /* ignore */ }
+  }, []);
+
+  async function toggleBarrier() {
+    if (!barrier) return;
+    setBarrierBusy(true);
+    try {
+      const r = await fetch("/api/barrier", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isOpen: !barrier.is_open }),
+      });
+      if (r.ok) setBarrier(await r.json());
+    } finally {
+      setBarrierBusy(false);
+    }
+  }
+
   useEffect(() => {
     if (step === "plate") return;
     fetchSpots();
-    const id = setInterval(fetchSpots, 5000);
-    return () => clearInterval(id);
-  }, [step, fetchSpots]);
+    fetchBarrier();
+    const idSpots   = setInterval(fetchSpots,   5000);
+    const idBarrier = setInterval(fetchBarrier, 2000);
+    return () => { clearInterval(idSpots); clearInterval(idBarrier); };
+  }, [step, fetchSpots, fetchBarrier]);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -318,10 +350,21 @@ export default function Home() {
                       setStep("reserve");
                     }}
                     disabled={!isClickable}
-                    className={`rounded-2xl border-2 p-3 text-left transition-all ${cfg.bg} ${cfg.border} ${
+                    className={`relative rounded-2xl border-2 p-3 text-left transition-all ${cfg.bg} ${cfg.border} ${
+                      spot.is_handicap ? "ring-2 ring-blue-400/60 ring-offset-2 ring-offset-gray-950" : ""
+                    } ${
                       isClickable ? "cursor-pointer active:scale-95 hover:brightness-125" : "cursor-default"
                     }`}
                   >
+                    {spot.is_handicap && (
+                      <span
+                        className="absolute top-1 right-1 text-blue-300 text-lg leading-none"
+                        aria-label="Place handicapée"
+                        title="Place handicapée"
+                      >
+                        ♿
+                      </span>
+                    )}
                     <p className="text-white font-bold text-base">{spot.name}</p>
                     <p className={`text-xs font-semibold mt-0.5 ${cfg.labelColor}`}>
                       {isMySpot && st === "EN_COURS" ? "MA PLACE" : cfg.label}
@@ -350,6 +393,35 @@ export default function Home() {
             </div>
 
             <p className="text-gray-600 text-xs">{freeCount} / {spots.length} places libres</p>
+
+            {/* Contrôle barrière entrée */}
+            <div className="w-full max-w-xs">
+              <div
+                className={`rounded-2xl border-2 p-4 flex items-center justify-between gap-3 transition-colors ${
+                  barrier?.is_open
+                    ? "bg-green-900/30 border-green-600"
+                    : "bg-gray-800 border-gray-700"
+                }`}
+              >
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-gray-500">Barrière entrée</p>
+                  <p className={`font-black text-lg ${barrier?.is_open ? "text-green-400" : "text-gray-300"}`}>
+                    {barrier === null ? "…" : barrier.is_open ? "OUVERTE 🚧" : "FERMÉE ⛔"}
+                  </p>
+                </div>
+                <button
+                  onClick={toggleBarrier}
+                  disabled={barrierBusy || barrier === null}
+                  className={`px-4 py-3 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 ${
+                    barrier?.is_open
+                      ? "bg-red-700 hover:bg-red-600 text-white"
+                      : "bg-blue-600 hover:bg-blue-500 text-white"
+                  }`}
+                >
+                  {barrier?.is_open ? "FERMER" : "OUVRIR"}
+                </button>
+              </div>
+            </div>
           </>
         )}
       </main>
