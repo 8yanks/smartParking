@@ -1,18 +1,18 @@
 # ESP32 — Code embarqué Parking Intelligent
 
-Code Arduino pour les 3 nœuds ESP32 du parking — **5 places** (dont 1 handicap) + **1 barrière** servomoteur.
+Code Arduino pour les 3 nœuds ESP32 du parking — **5 places** (dont 1 handicap). La barrière à l'entrée est purement physique (non motorisée par l'ESP32).
 
 > 🛠️ **Tu montes les composants pour la première fois ?** Suis le [**guide de montage pas à pas**](WIRING.md) plutôt que ce README — il commence par "Hello World" et te fait tester chaque composant individuellement avant d'assembler.
 
 ## Architecture matérielle
 
-| Nœud | Rôle | Capteurs | LEDs | OLEDs | Servo | Sketch |
-|------|------|----------|------|-------|-------|--------|
-| **#1 "panneau + barrière"** | Capteurs places 1-2 + panneau d'info entrée + barrière motorisée | 2× HC-SR04A | 2× LED rouge | 2× SBC-OLED01-V2 I2C (double-bus) | **1× SG90/MG90S** | `node-1.ino` |
-| **#2** | Capteurs places 3-4 | 2× HC-SR04A | 2× LED rouge | — | — | `node-sensor.ino` (NODE_ID = `node-2`) |
-| **#3** | Capteur place **5 (handicap)** | **1× HC-SR04A** | **1× LED rouge** | — | — | `node-sensor.ino` (NODE_ID = `node-3`, `SPOT_ID_B = -1`) |
+| Nœud | Rôle | Capteurs | LEDs | OLEDs | Sketch |
+|------|------|----------|------|-------|--------|
+| **#1 "panneau"** | Capteurs places 1-2 + panneau d'info entrée | 2× HC-SR04A | 2× LED rouge | 2× SBC-OLED01-V2 I2C (double-bus) | `node-1.ino` |
+| **#2** | Capteurs places 3-4 | 2× HC-SR04A | 2× LED rouge | — | `node-sensor.ino` (NODE_ID = `node-2`) |
+| **#3** | Capteur place **5 (handicap)** | **1× HC-SR04A** | **1× LED rouge** | — | `node-sensor.ino` (NODE_ID = `node-3`, `SPOT_ID_B = -1`) |
 
-Total : **3 ESP32, 5 capteurs HC-SR04A, 5 LEDs (+1 spare), 2 OLEDs, 1 servomoteur**.
+Total : **3 ESP32, 5 capteurs HC-SR04A, 5 LEDs (+1 spare), 2 OLEDs**.
 
 ## Bibliothèques Arduino requises
 
@@ -25,7 +25,6 @@ Total : **3 ESP32, 5 capteurs HC-SR04A, 5 LEDs (+1 spare), 2 OLEDs, 1 servomoteu
 | `ArduinoJson` | Benoit Blanchon | Sérialisation JSON |
 | `Adafruit GFX Library` | Adafruit | Primitives graphiques (nœud #1 uniquement) |
 | `Adafruit SSD1306` | Adafruit | Pilote des OLEDs (nœud #1 uniquement) |
-| `ESP32Servo` | Kevin Harrington | Pilote du servomoteur barrière (nœud #1 uniquement) |
 
 ## Câblage GPIO
 
@@ -43,11 +42,10 @@ Le pinout détaillé (broche par broche, avec tableau) est dans [`WIRING.md`](WI
 | 4  | LED B | — | — | ✅ (déplacée à cause du bus I2C) |
 | 21 / 22 | SDA / SCL bus I2C #0 (OLED gauche) | — | — | ✅ |
 | 33 / 32 | SDA / SCL bus I2C #1 (OLED droite) | — | — | ✅ |
-| **18** | **PWM servo barrière** | — | — | **✅** |
 
 > Les 2 OLEDs partagent l'adresse I2C `0x3C` → on utilise **deux bus I2C distincts** sur l'ESP32 (Wire et Wire1) pour les distinguer sans soudure.
 
-**Alim** : capteurs HC-SR04A sur **5V (VIN)**, OLEDs sur **3.3V** (jamais 5V — risque de griller), servo sur **5V (VIN)** (jamais 3V3 — pas assez de courant).
+**Alim** : capteurs HC-SR04A sur **5V (VIN)**, OLEDs sur **3.3V** (jamais 5V — risque de griller).
 
 Broches strap à éviter : 0, 2, 12, 15. Broches input-only : 34, 35, 36, 39.
 
@@ -91,8 +89,5 @@ Le `HTTP -1` est normal tant que le serveur n'est pas lancé. La détection capt
 |---------|-------|------|------|---------|
 | POST | `/api/spot/{id}` | `{"occupied":bool, "distance_cm":float, "esp32_id":string}` | `X-API-Key` | `200 OK` (id ∈ 1..5) |
 | GET | `/api/spots` | — | publique | `[{"id":1, "name":"Place A1", "is_occupied":false, "is_handicap":false, ...}, ...]` |
-| GET | `/api/barrier` | — | publique | `{"is_open": bool, "updated_at": iso}` |
-| POST | `/api/barrier` | `{"isOpen": bool}` | publique (local) | nouvel état |
 
-- Le nœud #1 utilise `GET /api/spots` toutes les ~5 s pour rafraîchir le panneau OLED.
-- Le nœud #1 utilise `GET /api/barrier` toutes les ~2 s pour piloter le servomoteur (0° fermée, 90° ouverte).
+Le nœud #1 utilise `GET /api/spots` toutes les ~5 s pour rafraîchir le panneau OLED.

@@ -33,15 +33,7 @@ async function main() {
     });
   }
 
-  // ── Barrière ────────────────────────────────────────────────────────────
-  // Singleton (id = 1). Fermée par défaut.
-  await prisma.barrier.upsert({
-    where: { id: 1 },
-    update: {},
-    create: { id: 1, isOpen: false },
-  });
-
-  console.log('✓ Seed OK — 5 places (A5 = handicap) + barrière initialisée (fermée)');
+  console.log('✓ Seed OK — 5 places (A5 = handicap)');
 }
 
 main()
