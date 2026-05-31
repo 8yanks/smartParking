@@ -23,11 +23,6 @@ type Spot = {
   activeReservation: Reservation | null;
 };
 
-type BarrierState = {
-  is_open: boolean;
-  updated_at: string;
-};
-
 type SpotStatus = "LIBRE" | "RESERVE" | "EN_COURS" | "OCCUPE" | "DEPASSE";
 
 const DURATIONS = [
@@ -78,8 +73,6 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [confirmed, setConfirmed] = useState<(Reservation & { spotName: string }) | null>(null);
-  const [barrier, setBarrier] = useState<BarrierState | null>(null);
-  const [barrierBusy, setBarrierBusy] = useState(false);
 
   const fetchSpots = useCallback(async () => {
     try {
@@ -88,36 +81,12 @@ export default function Home() {
     } catch { /* ignore network errors */ }
   }, []);
 
-  const fetchBarrier = useCallback(async () => {
-    try {
-      const r = await fetch("/api/barrier");
-      if (r.ok) setBarrier(await r.json());
-    } catch { /* ignore */ }
-  }, []);
-
-  async function toggleBarrier() {
-    if (!barrier) return;
-    setBarrierBusy(true);
-    try {
-      const r = await fetch("/api/barrier", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isOpen: !barrier.is_open }),
-      });
-      if (r.ok) setBarrier(await r.json());
-    } finally {
-      setBarrierBusy(false);
-    }
-  }
-
   useEffect(() => {
     if (step === "plate") return;
     fetchSpots();
-    fetchBarrier();
-    const idSpots   = setInterval(fetchSpots,   5000);
-    const idBarrier = setInterval(fetchBarrier, 2000);
-    return () => { clearInterval(idSpots); clearInterval(idBarrier); };
-  }, [step, fetchSpots, fetchBarrier]);
+    const id = setInterval(fetchSpots, 5000);
+    return () => clearInterval(id);
+  }, [step, fetchSpots]);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -393,35 +362,6 @@ export default function Home() {
             </div>
 
             <p className="text-gray-600 text-xs">{freeCount} / {spots.length} places libres</p>
-
-            {/* Contrôle barrière entrée */}
-            <div className="w-full max-w-xs">
-              <div
-                className={`rounded-2xl border-2 p-4 flex items-center justify-between gap-3 transition-colors ${
-                  barrier?.is_open
-                    ? "bg-green-900/30 border-green-600"
-                    : "bg-gray-800 border-gray-700"
-                }`}
-              >
-                <div>
-                  <p className="text-xs uppercase tracking-widest text-gray-500">Barrière entrée</p>
-                  <p className={`font-black text-lg ${barrier?.is_open ? "text-green-400" : "text-gray-300"}`}>
-                    {barrier === null ? "…" : barrier.is_open ? "OUVERTE 🚧" : "FERMÉE ⛔"}
-                  </p>
-                </div>
-                <button
-                  onClick={toggleBarrier}
-                  disabled={barrierBusy || barrier === null}
-                  className={`px-4 py-3 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 ${
-                    barrier?.is_open
-                      ? "bg-red-700 hover:bg-red-600 text-white"
-                      : "bg-blue-600 hover:bg-blue-500 text-white"
-                  }`}
-                >
-                  {barrier?.is_open ? "FERMER" : "OUVRIR"}
-                </button>
-              </div>
-            </div>
           </>
         )}
       </main>

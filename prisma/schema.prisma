@@ -21,14 +21,6 @@ model ParkingSpot {
   reservations  Reservation[]
 }
 
-// État global de la barrière d'entrée (servomoteur sur node-1).
-// Un seul enregistrement (id = 1) — pattern singleton.
-model Barrier {
-  id        Int      @id @default(1)
-  isOpen    Boolean  @default(false)
-  updatedAt DateTime @default(now()) @updatedAt
-}
-
 model Reservation {
   id              Int         @id @default(autoincrement())
   spotId          Int

@@ -1,20 +1,21 @@
 /**
- * Parking Intelligent — Nœud #1 "Panneau d'entrée + barrière"
+ * Parking Intelligent — Nœud #1 "Panneau d'entrée"
  *
  * Configuration matérielle :
  *  - 2× HC-SR04A (places 1 et 2)
  *  - 2× LED rouge (1 par place)
  *  - 2× SBC-OLED01-V2 (SSD1306 128x64) en I2C
  *      → 2 bus I2C SÉPARÉS car les 2 OLEDs ont la même adresse 0x3C par défaut
- *  - 1× servomoteur SG90/MG90S (barrière entrée) — GPIO 18, alim 5V
  *
  * Le node-1 :
  *  - POST l'état des places 1 et 2 vers /api/spot/{id}
  *  - GET /api/spots toutes les ~5s pour rafraîchir les OLEDs (vue globale 5 places)
- *  - GET /api/barrier toutes les ~2s et bouge le servo (0° fermée, 90° ouverte)
+ *
+ * Note : la barrière motorisée a été abandonnée — elle reste purement physique,
+ * non pilotée par l'ESP32.
  *
  * Dépendances Arduino : WiFi, HTTPClient, ArduinoJson, Wire, Adafruit_GFX,
- *                        Adafruit_SSD1306, ESP32Servo
+ *                        Adafruit_SSD1306
  */
 
 #include <WiFi.h>
@@ -23,7 +24,6 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include <ESP32Servo.h>
 #include <time.h>
 
 // ============================================================
@@ -59,19 +59,13 @@ const int SPOT_ID_B = 2;
 #define OLED_SDA_R 33
 #define OLED_SCL_R 32
 
-// Servomoteur barrière entrée
-#define SERVO_PIN     18
-#define SERVO_CLOSED  0    // angle barrière fermée
-#define SERVO_OPEN    90   // angle barrière ouverte
-
 // ============================================================
 // PARAMÈTRES MÉTIER
 // ============================================================
-const int   NB_SPOTS                 = 5;     // matériel mis à jour : 5 places
+const int   NB_SPOTS                 = 5;     // matériel : 5 places
 const float DISTANCE_THRESHOLD_CM    = 20.0;
 const unsigned long LOOP_DELAY_MS    = 4500;
 const unsigned long PANEL_REFRESH_MS = 5000;
-const unsigned long BARRIER_POLL_MS  = 2000;  // poll barrière plus souvent (réactivité)
 
 const char* NTP_SERVER       = "pool.ntp.org";
 const long  GMT_OFFSET       = 3600;
@@ -85,15 +79,11 @@ TwoWire I2C_R = TwoWire(1);  // bus I2C #1 (Wire1)
 Adafruit_SSD1306 oledLeft (128, 64, &Wire,  -1);
 Adafruit_SSD1306 oledRight(128, 64, &I2C_R, -1);
 
-Servo barrierServo;
-
 // État local des places (mis à jour par fetchAllSpots()). Place 5 = handicap.
-bool spotsState[NB_SPOTS]      = {false, false, false, false, false};
-bool spotsHandicap[NB_SPOTS]   = {false, false, false, false, true};
+bool spotsState[NB_SPOTS]    = {false, false, false, false, false};
+bool spotsHandicap[NB_SPOTS] = {false, false, false, false, true};
 
-bool barrierIsOpen = false;
-unsigned long lastPanelRefresh   = 0;
-unsigned long lastBarrierRefresh = 0;
+unsigned long lastPanelRefresh = 0;
 
 // ============================================================
 // SETUP
@@ -101,7 +91,7 @@ unsigned long lastBarrierRefresh = 0;
 void setup() {
     Serial.begin(115200);
     delay(200);
-    Serial.println("\n[node-1] Boot panneau + barriere");
+    Serial.println("\n[node-1] Boot panneau");
 
     pinMode(TRIG_A, OUTPUT); pinMode(ECHO_A, INPUT);
     pinMode(TRIG_B, OUTPUT); pinMode(ECHO_B, INPUT);
@@ -111,20 +101,20 @@ void setup() {
     Wire.begin(OLED_SDA_L, OLED_SCL_L);
     I2C_R.begin(OLED_SDA_R, OLED_SCL_R);
 
-    if (!oledLeft.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    // periphBegin = false → empêche Adafruit_SSD1306 de re-appeler wire->begin()
+    // sans args (ce qui réinitialisait le bus #1 sur les pins par défaut au lieu
+    // de 33/32 → l'OLED droite ACKait à l'init mais ne recevait plus aucun draw).
+    if (!oledLeft.begin(SSD1306_SWITCHCAPVCC, 0x3C, true, false)) {
         Serial.println("[OLED-L] init KO (verifier SDA=21, SCL=22, alim 3.3V, adresse 0x3C)");
+    } else {
+        Serial.println("[OLED-L] init OK");
     }
-    if (!oledRight.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    if (!oledRight.begin(SSD1306_SWITCHCAPVCC, 0x3C, true, false)) {
         Serial.println("[OLED-R] init KO (verifier SDA=33, SCL=32, alim 3.3V, adresse 0x3C)");
+    } else {
+        Serial.println("[OLED-R] init OK");
     }
     showBootScreen();
-
-    // Servo barrière — démarrage fermé.
-    // ESP32Servo gère seul l'allocation d'un timer LEDC ; pas de conflit avec PWM analogique.
-    barrierServo.setPeriodHertz(50);   // 50 Hz = standard servos hobbyistes
-    barrierServo.attach(SERVO_PIN, 500, 2400);
-    barrierServo.write(SERVO_CLOSED);
-    Serial.printf("[Servo] attache GPIO %d, position initiale = %d (fermee)\n", SERVO_PIN, SERVO_CLOSED);
 
     connectWifi();
     configTime(GMT_OFFSET, DAYLIGHT_OFFSET, NTP_SERVER);
@@ -215,42 +205,6 @@ bool fetchAllSpots() {
 }
 
 // ============================================================
-// BARRIÈRE — GET /api/barrier puis pilotage servo
-// ============================================================
-bool fetchBarrierState() {
-    if (WiFi.status() != WL_CONNECTED) connectWifi();
-    if (WiFi.status() != WL_CONNECTED) return false;
-
-    HTTPClient http;
-    String url = String(SERVER_URL) + "/api/barrier";
-    http.begin(url);
-    int code = http.GET();
-    if (code != 200) {
-        Serial.printf("[GET] /api/barrier HTTP %d\n", code);
-        http.end();
-        return false;
-    }
-
-    StaticJsonDocument<128> doc;
-    DeserializationError err = deserializeJson(doc, http.getString());
-    http.end();
-    if (err) {
-        Serial.printf("[GET barrier] JSON err: %s\n", err.c_str());
-        return false;
-    }
-
-    bool wanted = doc["is_open"] | false;
-    if (wanted != barrierIsOpen) {
-        barrierIsOpen = wanted;
-        int angle = barrierIsOpen ? SERVO_OPEN : SERVO_CLOSED;
-        barrierServo.write(angle);
-        Serial.printf("[Servo] barriere -> %s (%d deg)\n",
-                      barrierIsOpen ? "OUVERTE" : "FERMEE", angle);
-    }
-    return true;
-}
-
-// ============================================================
 // OLEDS
 // ============================================================
 void showBootScreen() {
@@ -326,19 +280,15 @@ void renderRightPanel() {
     oledRight.setCursor(35, 35);
     oledRight.print("LIBRES");
 
-    // Petit indicateur barrière en bas à gauche
-    oledRight.setCursor(0, 52);
-    oledRight.print(barrierIsOpen ? "BARR.OUVERTE" : "BARR.FERMEE");
-
-    // Heure NTP en bas à droite
-    char timeStr[6];
+    // Heure NTP en bas, centrée
+    char timeStr[9];
     struct tm timeinfo;
     if (getLocalTime(&timeinfo, 100)) {
-        strftime(timeStr, sizeof(timeStr), "%H:%M", &timeinfo);
+        strftime(timeStr, sizeof(timeStr), "%H:%M:%S", &timeinfo);
     } else {
-        strcpy(timeStr, "--:--");
+        strcpy(timeStr, "--:--:--");
     }
-    oledRight.setCursor(98, 52);
+    oledRight.setCursor(28, 52);
     oledRight.print(timeStr);
 
     oledRight.display();
@@ -362,12 +312,6 @@ void loop() {
     digitalWrite(LED_B, occB ? HIGH : LOW);
     postSpotStatus(SPOT_ID_B, occB, dB);
     spotsState[SPOT_ID_B - 1] = occB;
-
-    // ---- Barrière (poll plus fréquent que les places)
-    if (millis() - lastBarrierRefresh >= BARRIER_POLL_MS) {
-        fetchBarrierState();
-        lastBarrierRefresh = millis();
-    }
 
     // ---- Panneau OLED (rafraîchissement vue globale + heure)
     if (millis() - lastPanelRefresh >= PANEL_REFRESH_MS) {

@@ -35,7 +35,6 @@ git --version
    - `ArduinoJson` (Benoit Blanchon)
    - `Adafruit GFX Library`
    - `Adafruit SSD1306`
-   - `ESP32Servo` (Kevin Harrington) — pour la barrière du node-1
 
 ---
 
@@ -74,9 +73,9 @@ Write-Output "Clé générée : $key"
 ## Phase 3 — Initialiser la base SQLite (2 min)
 
 ```powershell
-npx prisma migrate deploy   # applique TOUTES les migrations (init + handicap_and_barrier)
+npx prisma migrate deploy   # applique TOUTES les migrations
 npx prisma generate         # génère le client Prisma dans src/generated/prisma
-npm run db:seed             # crée les 5 places A1-A5 (A5 = handicap) + état barrière fermé
+npm run db:seed             # crée les 5 places A1-A5 (A5 = handicap)
 ```
 
 Vérification :
@@ -84,9 +83,8 @@ Vérification :
 npm run dev
 # Dans un autre terminal :
 curl http://localhost:3000/api/spots
-curl http://localhost:3000/api/barrier
 ```
-Tu dois voir un JSON avec **5 places** (Place A5 a `is_handicap: true`) et un état barrière `{"is_open": false, ...}`. Stoppe avec `Ctrl+C`.
+Tu dois voir un JSON avec **5 places** (Place A5 a `is_handicap: true`). Stoppe avec `Ctrl+C`.
 
 ---
 
@@ -134,8 +132,6 @@ Pour `node-sensor.ino`, choisir aussi le bon bloc selon le nœud :
 - ESP32 #2 → `NODE_ID = "node-2"`, `SPOT_ID_A = 3`, `SPOT_ID_B = 4` (2 capteurs)
 - ESP32 #3 → `NODE_ID = "node-3"`, `SPOT_ID_A = 5`, **`SPOT_ID_B = -1`** (1 seul capteur, place handicap — le code skip toute la logique du capteur B)
 
-Pour `node-1.ino` : en plus des 4 constantes plus haut, le sketch pilote maintenant le **servomoteur barrière** sur GPIO 18 → installer la lib **ESP32Servo** (Kevin Harrington) dans l'Arduino IDE avant le flash. Câblage servo dans `esp32/WIRING.md` (étape 7bis).
-
 **Test smoke** : avec **un seul** ESP32 branché USB + un seul capteur sur GPIO 25/26 + une LED sur GPIO 32 (pinout dans WIRING.md), flashe et ouvre le moniteur série 115200 baud. Tu dois voir :
 ```
 [node-2] Boot capteur
@@ -161,10 +157,9 @@ Une fois les 3 nœuds en place et le dashboard à venir : voir [`docs/superpower
 | `docs/HANDOFF.md` (ce fichier) | Migration sur portable |
 | `esp32/WIRING.md` | Câblage pas à pas — 8 étapes guidées |
 | `esp32/README.md` | Récap pinout + API attendue |
-| `prisma/schema.prisma` | Modèle BDD (ParkingSpot avec `isHandicap`, Barrier singleton, SensorData, Reservation) |
+| `prisma/schema.prisma` | Modèle BDD (ParkingSpot avec `isHandicap`, SensorData, Reservation) |
 | `src/app/api/spot/[id]/route.ts` | Endpoint POST que les ESP32 appellent (valide id ∈ 1..5) |
 | `src/app/api/spots/route.ts` | Endpoint GET (5 places + flag handicap) pour le dashboard + nœud #1 |
-| `src/app/api/barrier/route.ts` | Endpoint GET (lu par node-1 + dashboard) + POST (dashboard toggle barrière) |
 
 ---
 
