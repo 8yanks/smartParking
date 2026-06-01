@@ -63,7 +63,7 @@ const int SPOT_ID_B = 2;
 // PARAMÈTRES MÉTIER
 // ============================================================
 const int   NB_SPOTS                 = 5;     // matériel : 5 places
-const float DISTANCE_THRESHOLD_CM    = 20.0;
+const float DISTANCE_THRESHOLD_CM    = 8.0;   // parking miniature, voitures jouet
 const unsigned long LOOP_DELAY_MS    = 4500;
 const unsigned long PANEL_REFRESH_MS = 5000;
 
