@@ -56,7 +56,7 @@ const int SPOT_ID_B  = -1;
 // ============================================================
 // PARAMÈTRES MÉTIER
 // ============================================================
-const float DISTANCE_THRESHOLD_CM = 20.0;   // < seuil = voiture présente
+const float DISTANCE_THRESHOLD_CM = 8.0;    // < seuil = voiture présente (parking miniature, voitures jouet)
 const unsigned long LOOP_DELAY_MS = 4500;   // intervalle global du loop
 
 // Petit helper : ce nœud gère-t-il un capteur B ?
